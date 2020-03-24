@@ -1,0 +1,37 @@
+#!/usr/bin/sh
+#
+# Format *.cpp|*.c|*.cc|*.h|*.hpp files with clang-format.
+# Called by "git commit" with no arguments.  The hook should
+# exit with non-zero status after issuing an appropriate message if
+# it wants to stop the commit.
+
+if git rev-parse --verify HEAD >/dev/null 2>&1
+then
+    against=HEAD
+else
+    # Initial commit: diff against an empty tree object
+    against=$(git hash-object -t tree /dev/null)
+fi
+
+# Redirect output to stderr.
+exec 1>&2
+
+# Find all changed C/C++ files
+diff_source_files=$(git diff --cached --name-only --diff-filter=AM $against \
+					-- '*.c' '*.cc' '*.cpp' '*.h' '*.hpp')
+# Only perform clang-format when changed source files exist
+if [[ ! -z $diff_source_files ]]; then
+	echo "[clang-format] Reformatting the following files: "
+	echo $diff_source_files
+	clang-format --style=file -i $diff_source_files
+	echo "[clang-format] Adding reformatted files."
+	git add $diff_source_files
+	# Commit can become empty after this; reject commit in that case.
+	diff_after_format=$(git diff --cached $against)
+	if [[ -z $diff_after_format ]]; then
+		echo "[clang-format] Commit is empty after formatting; rejected."
+		exit 1
+	fi
+else
+	echo "[clang-format] No C/C++ source files modified in the commit."
+fi

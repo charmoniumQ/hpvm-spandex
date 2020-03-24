@@ -1,0 +1,12 @@
+*.o
+*.so
+*.dot
+*.pyc
+
+hpvm/build/
+hpvm/install/
+hpvm/llvm/
+hpvm/llvm-*.src.tar.xz
+hpvm/llvm-*.src/
+hpvm/llvm_patches/**/*.patch
+

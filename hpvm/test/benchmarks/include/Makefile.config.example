@@ -1,0 +1,27 @@
+# These paths should be set to your local directories of CUDA and OpenCL
+CUDA_PATH=/software/cuda-9.1
+CUDA_LIB_PATH=$(CUDA_PATH)/lib64
+OPENCL_PATH=$(CUDA_PATH)
+OPENCL_LIB_PATH=$(OPENCL_PATH)/lib64
+
+# This path should be set to your HPVM build directory
+LLVM_BUILD_DIR=PATH/TO/LOCAL/HPVM/BUILD
+HPVM_BENCH_DIR=PATH/TO/HPVM/BENCH/DIR
+
+CC = $(LLVM_BUILD_DIR)/bin/clang
+PLATFORM_CFLAGS = -I$(OPENCL_PATH)/include/CL/ -I$(HPVM_BENCH_DIR)/include
+
+CXX = $(LLVM_BUILD_DIR)/bin/clang++
+PLATFORM_CXXFLAGS = -I$(OPENCL_PATH)/include/CL/ -I$(HPVM_BENCH_DIR)/include
+
+LINKER = $(LLVM_BUILD_DIR)/bin/clang++
+PLATFORM_LDFLAGS = -lm -lpthread -lrt -lOpenCL -L$(OPENCL_LIB_PATH)
+
+LLVM_LIB_PATH = $(LLVM_BUILD_DIR)/lib
+LLVM_BIN_PATH = $(LLVM_BUILD_DIR)/bin
+
+OPT = $(LLVM_BIN_PATH)/opt
+LLVM_LINK = $(LLVM_BIN_PATH)/llvm-link
+LLVM_AS = $(LLVM_BIN_PATH)/llvm-as
+LIT = $(LLVM_BIN_PATH)/llvm-lit
+OCLBE = $(LLVM_BIN_PATH)/llvm-cbe

@@ -1,0 +1,35 @@
+This file is a partial list of people who have contributed to the HPVM project.
+
+As with LLVM's credits, the list is sorted by surname and formatted to allow
+easy grepping and beautification by scripts.  The fields are: name (N) and
+email (E).
+
+N: Vikram Adve
+E: vadve@illinois.edu
+
+N: Sarita Adve
+E: sadve@illinois.edu
+
+N: Adel Ejjeh
+E: aejjeh@illinois.edu
+
+N: Kapil Kanwar
+E: kkanwar2@illinois.edu
+
+N: Akash Kothari
+E: akashk4@illinois.edu
+
+N: Maria Kotsifakou
+E: kotsifa2@illinois.edu
+
+N: Sasa Misailovic
+E: misailo@illinois.edu
+
+N: Benjamin Schreiber
+E: bjschre2@illinois.edu
+
+N: Hashim Sharif
+E: hsharif3@illinois.edu
+
+N: Yifan Zhao
+E: yifanz16@illinois.edu

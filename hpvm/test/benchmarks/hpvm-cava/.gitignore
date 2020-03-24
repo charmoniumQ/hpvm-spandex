@@ -1,0 +1,7 @@
+cava-hpvm-*
+*.bin
+*.png
+!example-tulip-small/raw_tulip-small.bin
+!example-tulips/raw_tulips.bin
+scripts/cmodule.py
+scripts/gamut_map_wrap.cc

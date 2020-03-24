@@ -1,0 +1,52 @@
+llvm-cbe: /home/aejjeh/work_dir/llvm_9/llvm/lib/Transforms/Utils/LoopSimplify.cpp:721: bool llvm::simplifyLoop(llvm::Loop*, llvm::DominatorTree*, llvm::LoopInfo*, llvm::ScalarEvolution*, llvm::AssumptionCache*, llvm::MemorySSAUpdater*, bool): Assertion `L->isRecursivelyLCSSAForm(*DT, *LI) && "Requested to preserve LCSSA, but it's already broken."' failed.
+ #0 0x000056094abcac6d llvm::sys::PrintStackTrace(llvm::raw_ostream&) /home/aejjeh/work_dir/llvm_9/llvm/lib/Support/Unix/Signals.inc:533:0
+ #1 0x000056094abcad00 PrintStackTraceSignalHandler(void*) /home/aejjeh/work_dir/llvm_9/llvm/lib/Support/Unix/Signals.inc:594:0
+ #2 0x000056094abc8bda llvm::sys::RunSignalHandlers() /home/aejjeh/work_dir/llvm_9/llvm/lib/Support/Signals.cpp:68:0
+ #3 0x000056094abca624 SignalHandler(int) /home/aejjeh/work_dir/llvm_9/llvm/lib/Support/Unix/Signals.inc:385:0
+ #4 0x00007fce196c7890 __restore_rt (/lib/x86_64-linux-gnu/libpthread.so.0+0x12890)
+ #5 0x00007fce1837be97 raise /build/glibc-OTsEL5/glibc-2.27/signal/../sysdeps/unix/sysv/linux/raise.c:51:0
+ #6 0x00007fce1837d801 abort /build/glibc-OTsEL5/glibc-2.27/stdlib/abort.c:81:0
+ #7 0x00007fce1836d39a __assert_fail_base /build/glibc-OTsEL5/glibc-2.27/assert/assert.c:89:0
+ #8 0x00007fce1836d412 (/lib/x86_64-linux-gnu/libc.so.6+0x30412)
+ #9 0x000056094ada8c10 llvm::simplifyLoop(llvm::Loop*, llvm::DominatorTree*, llvm::LoopInfo*, llvm::ScalarEvolution*, llvm::AssumptionCache*, llvm::MemorySSAUpdater*, bool) /home/aejjeh/work_dir/llvm_9/llvm/lib/Transforms/Utils/LoopSimplify.cpp:720:0
+#10 0x0000560949f8148a (anonymous namespace)::CWriter::runOnFunction(llvm::Function&) /home/aejjeh/work_dir/llvm_9/llvm/projects/llvm-cbe/lib/Target/CBackend/CBackend.cpp:173:0
+#11 0x000056094a651b86 llvm::FPPassManager::runOnFunction(llvm::Function&) /home/aejjeh/work_dir/llvm_9/llvm/lib/IR/LegacyPassManager.cpp:1648:0
+#12 0x000056094a651e77 llvm::FPPassManager::runOnModule(llvm::Module&) /home/aejjeh/work_dir/llvm_9/llvm/lib/IR/LegacyPassManager.cpp:1685:0
+#13 0x000056094a6522b7 (anonymous namespace)::MPPassManager::runOnModule(llvm::Module&) /home/aejjeh/work_dir/llvm_9/llvm/lib/IR/LegacyPassManager.cpp:1750:0
+#14 0x000056094a652a77 llvm::legacy::PassManagerImpl::run(llvm::Module&) /home/aejjeh/work_dir/llvm_9/llvm/lib/IR/LegacyPassManager.cpp:1863:0
+#15 0x000056094a652c69 llvm::legacy::PassManager::run(llvm::Module&) /home/aejjeh/work_dir/llvm_9/llvm/lib/IR/LegacyPassManager.cpp:1895:0
+#16 0x0000560949768421 compileModule(char**, llvm::LLVMContext&) /home/aejjeh/work_dir/llvm_9/llvm/projects/llvm-cbe/tools/llvm-cbe/llvm-cbe.cpp:360:0
+#17 0x00005609497678b7 main /home/aejjeh/work_dir/llvm_9/llvm/projects/llvm-cbe/tools/llvm-cbe/llvm-cbe.cpp:210:0
+#18 0x00007fce1835eb97 __libc_start_main /build/glibc-OTsEL5/glibc-2.27/csu/../csu/libc-start.c:344:0
+#19 0x0000560949765f9a _start (../../../build/bin/llvm-cbe+0xe9ff9a)
+Stack dump:
+0.	Program arguments: ../../../build/bin/llvm-cbe ./test101_O1.ll 
+1.	Running pass 'Function Pass Manager' on module './test101_O1.ll'.
+2.	Running pass 'C backend' on function '@fastfib'
+test.sh: line 1: 31864 Aborted                 ../../../build/bin/llvm-cbe $i
+llvm-cbe: /home/aejjeh/work_dir/llvm_9/llvm/lib/Transforms/Utils/LoopSimplify.cpp:721: bool llvm::simplifyLoop(llvm::Loop*, llvm::DominatorTree*, llvm::LoopInfo*, llvm::ScalarEvolution*, llvm::AssumptionCache*, llvm::MemorySSAUpdater*, bool): Assertion `L->isRecursivelyLCSSAForm(*DT, *LI) && "Requested to preserve LCSSA, but it's already broken."' failed.
+ #0 0x000055f2095bcc6d llvm::sys::PrintStackTrace(llvm::raw_ostream&) /home/aejjeh/work_dir/llvm_9/llvm/lib/Support/Unix/Signals.inc:533:0
+ #1 0x000055f2095bcd00 PrintStackTraceSignalHandler(void*) /home/aejjeh/work_dir/llvm_9/llvm/lib/Support/Unix/Signals.inc:594:0
+ #2 0x000055f2095babda llvm::sys::RunSignalHandlers() /home/aejjeh/work_dir/llvm_9/llvm/lib/Support/Signals.cpp:68:0
+ #3 0x000055f2095bc624 SignalHandler(int) /home/aejjeh/work_dir/llvm_9/llvm/lib/Support/Unix/Signals.inc:385:0
+ #4 0x00007fdafbf50890 __restore_rt (/lib/x86_64-linux-gnu/libpthread.so.0+0x12890)
+ #5 0x00007fdafac04e97 raise /build/glibc-OTsEL5/glibc-2.27/signal/../sysdeps/unix/sysv/linux/raise.c:51:0
+ #6 0x00007fdafac06801 abort /build/glibc-OTsEL5/glibc-2.27/stdlib/abort.c:81:0
+ #7 0x00007fdafabf639a __assert_fail_base /build/glibc-OTsEL5/glibc-2.27/assert/assert.c:89:0
+ #8 0x00007fdafabf6412 (/lib/x86_64-linux-gnu/libc.so.6+0x30412)
+ #9 0x000055f20979ac10 llvm::simplifyLoop(llvm::Loop*, llvm::DominatorTree*, llvm::LoopInfo*, llvm::ScalarEvolution*, llvm::AssumptionCache*, llvm::MemorySSAUpdater*, bool) /home/aejjeh/work_dir/llvm_9/llvm/lib/Transforms/Utils/LoopSimplify.cpp:720:0
+#10 0x000055f20897348a (anonymous namespace)::CWriter::runOnFunction(llvm::Function&) /home/aejjeh/work_dir/llvm_9/llvm/projects/llvm-cbe/lib/Target/CBackend/CBackend.cpp:173:0
+#11 0x000055f209043b86 llvm::FPPassManager::runOnFunction(llvm::Function&) /home/aejjeh/work_dir/llvm_9/llvm/lib/IR/LegacyPassManager.cpp:1648:0
+#12 0x000055f209043e77 llvm::FPPassManager::runOnModule(llvm::Module&) /home/aejjeh/work_dir/llvm_9/llvm/lib/IR/LegacyPassManager.cpp:1685:0
+#13 0x000055f2090442b7 (anonymous namespace)::MPPassManager::runOnModule(llvm::Module&) /home/aejjeh/work_dir/llvm_9/llvm/lib/IR/LegacyPassManager.cpp:1750:0
+#14 0x000055f209044a77 llvm::legacy::PassManagerImpl::run(llvm::Module&) /home/aejjeh/work_dir/llvm_9/llvm/lib/IR/LegacyPassManager.cpp:1863:0
+#15 0x000055f209044c69 llvm::legacy::PassManager::run(llvm::Module&) /home/aejjeh/work_dir/llvm_9/llvm/lib/IR/LegacyPassManager.cpp:1895:0
+#16 0x000055f20815a421 compileModule(char**, llvm::LLVMContext&) /home/aejjeh/work_dir/llvm_9/llvm/projects/llvm-cbe/tools/llvm-cbe/llvm-cbe.cpp:360:0
+#17 0x000055f2081598b7 main /home/aejjeh/work_dir/llvm_9/llvm/projects/llvm-cbe/tools/llvm-cbe/llvm-cbe.cpp:210:0
+#18 0x00007fdafabe7b97 __libc_start_main /build/glibc-OTsEL5/glibc-2.27/csu/../csu/libc-start.c:344:0
+#19 0x000055f208157f9a _start (../../../build/bin/llvm-cbe+0xe9ff9a)
+Stack dump:
+0.	Program arguments: ../../../build/bin/llvm-cbe ./test006_O1.ll 
+1.	Running pass 'Function Pass Manager' on module './test006_O1.ll'.
+2.	Running pass 'C backend' on function '@main'
+test.sh: line 1: 31911 Aborted                 ../../../build/bin/llvm-cbe $i

@@ -1,0 +1,20 @@
+This file is a partial list of people who have contributed to the HPVM-CAVA
+pilot project.
+
+As with LLVM's credits, the list is sorted by surname and formatted to allow
+easy grepping and beautification by scripts.  The fields are: name (N) and
+email (E).
+
+
+N: Adel Ejjeh
+E: aejjeh@illinois.edu
+
+N: Maria Kotsifakou
+E: kotsifa2@illinois.edu
+
+N: Saketh Rama
+E: rama@seas.harvard.edu
+
+N: Yuan Yao
+E: yuanyao@seas.harvard.edu
+
