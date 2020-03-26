@@ -10,3 +10,5 @@ hpvm/llvm-*.src.tar.xz
 hpvm/llvm-*.src/
 hpvm/llvm_patches/**/*.patch
 
+CMakeCache.txt
+CMakeFiles/
