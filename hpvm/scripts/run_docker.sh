@@ -7,5 +7,5 @@ env \
 	mount_cwd=yes \
 	interactive=yes \
 	packages="git wget xz-utils cmake make g++ python ocl-icd-opencl-dev" \
-	command="./scripts/hpvm_build.sh" \
+	command="${command:-./scripts/hpvm_build.sh}" \
 	./scripts/docker.sh

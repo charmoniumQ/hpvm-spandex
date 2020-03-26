@@ -119,14 +119,25 @@ EOF
 	 fi
 fi
 
-if [ "${be_user}" = "yes" ]; then
-	GROUP="$(id --group --name)"
-	GID="$(id --group)"
-	UID="$(id --user)"
+if [ "${be_user}" = "yes" ]
+then
+	# this is a hack because on Mac, the user is in the staff group
+	# and staff already exists, so I append the name 'docker' to the group
+	GROUP="$(id -g -n)docker"
+	if [ -z "${GID}" ]
+	then
+		# some shells set GID
+		# moreover, these shells don't like it when you set the GID
+		GID="$(id -g)"
+	fi
+	if [ -z "${UID}" ]
+	then
+		UID="$(id -u)"
+	fi
     cat <<EOF >> "${dockerfile_out}"
-RUN groupadd --gid "${GID}" "${GROUP}" && \
-    useradd --base-dir /home --gid "${GID}" --create-home --uid "${UID}" -o --shell /bin/bash "${USER}" && \
-    echo "%${GROUP} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+RUN groupadd --non-unique --gid "${GID}" "${GROUP}" && \
+    useradd --non-unique --base-dir /home --gid "${GID}" --create-home --uid "${UID}" -o --shell /bin/bash "${USER}" && \
+    echo "${USER} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
 true
 # In the case where be_user = yes, I de-escalate priveleges here.
 # This is so that if you write files in the Dockerfile, they will be accessible to the end-user, who is running non-root.
@@ -159,7 +170,7 @@ if [ "${context_cwd}" = "yes" ]
 then
 	context="${PWD}"
 else
-	context="$(mktemp --directory)"
+	context="$(mktemp -d)"
 fi
 
 # fill in default arg in the case where dockerfile is empty
@@ -202,7 +213,12 @@ if [ "${interactive}" = "yes" ]; then
 fi
 
 if [ "${mount_cwd}" = "yes" ]; then
-	wd="$(realpath ${PWD})"
+	wd="${PWD}"
+	# MacOS does not have `realpath` (gnu coreutils)
+	if realpath "${wd}"
+	then
+		wd="$(realpath ${wd})"
+	fi
     docker_run_args="${docker_run_args} --volume ${wd}:${wd} --workdir ${wd}"
 fi
 
