@@ -13,11 +13,14 @@ namespace spandex {
 
 		Spandex();
 
+		void getAnalysisUsage(AnalysisUsage &AU) const;
+
 		virtual bool runOnModule(llvm::Module &M);
 
 	private:
+		// https://cpppatterns.com/patterns/pimpl.html
 		class impl;
-		std::unique_ptr<impl> pimpl;
+		std::unique_ptr<impl> pImpl;
 	};
 }
 

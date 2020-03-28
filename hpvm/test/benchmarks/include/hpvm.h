@@ -73,6 +73,9 @@ void llvm_hpvm_track_mem(void *, size_t) noexcept;
 void llvm_hpvm_untrack_mem(void *) noexcept;
 void llvm_hpvm_request_mem(void *, size_t) noexcept;
 
+const unsigned int HPVM_STREAMING = 1;
+const unsigned int HPVM_NONSTREAMING = 0;
+
 #ifdef __cplusplus
 }
 #endif
