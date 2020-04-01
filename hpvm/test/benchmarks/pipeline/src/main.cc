@@ -10,8 +10,16 @@
  * Main entry of dense matrix-matrix multiplication kernel
  */
 
-#include "opencv2/ocl/ocl.hpp"
-#include "opencv2/opencv.hpp"
+#include <opencv2/opencv.hpp>
+
+#if CV_VERSION_MAJOR == 3
+#include <opencv2/core/ocl.hpp>
+#elif CV_VERSION_MAJOR == 2
+#include <opencv2/ocl/ocl.hpp>
+#else
+#error "Unknown version of OpenCV"
+#endif
+
 #include <cassert>
 #include <hpvm.h>
 #include <iostream>
