@@ -6,22 +6,21 @@
 
 namespace spandex {
 
-	class Spandex : public llvm::ModulePass {
-	public:
+class Spandex : public llvm::ModulePass {
+public:
+  static char ID;
 
-		static char ID;
+  Spandex();
 
-		Spandex();
+  void getAnalysisUsage(AnalysisUsage &AU) const;
 
-		void getAnalysisUsage(AnalysisUsage &AU) const;
+  virtual bool runOnModule(llvm::Module &M);
 
-		virtual bool runOnModule(llvm::Module &M);
-
-	private:
-		// https://cpppatterns.com/patterns/pimpl.html
-		class impl;
-		std::unique_ptr<impl> pImpl;
-	};
-}
+private:
+  // https://cpppatterns.com/patterns/pimpl.html
+  class impl;
+  std::unique_ptr<impl> pImpl;
+};
+} // namespace spandex
 
 #endif
