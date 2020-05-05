@@ -3,60 +3,60 @@
 #include <cassert>
 #include <hpvm.h>
 
-void double_scalar_fn(int* in, size_t inSize, int* out, size_t outSize) {
+void dbl_sclr(int* in, size_t inSize, int* out, size_t outSize) {
 	__hpvm__hint(hpvm::CPU_TARGET);
 	__hpvm__attributes(1, in, 1, out);
 	long i = __hpvm__getNodeInstanceID_x(__hpvm__getNode());
 	out[i] = in[i] + in[i];
 }
 
-void double_vector_fn(int* in, size_t inSize, int* out, size_t outSize, size_t length) {
+void dbl_vect(int* in, size_t inSize, int* out, size_t outSize, size_t length) {
 	__hpvm__hint(hpvm::CPU_TARGET);
 	__hpvm__attributes(1, in, 1, out);
 	
-	void* scalar = __hpvm__createNodeND(1, double_scalar_fn, length);
-	__hpvm__bindIn(scalar, 0 /*in     */, 0 /*in     */, HPVM_NONSTREAMING);
-	__hpvm__bindIn(scalar, 1 /*inSize */, 1 /*inSize */, HPVM_NONSTREAMING);
-	__hpvm__bindIn(scalar, 2 /*out    */, 2 /*out    */, HPVM_NONSTREAMING);
-	__hpvm__bindIn(scalar, 3 /*outSize*/, 3 /*outSize*/, HPVM_NONSTREAMING);
+	void* dbl_sclr_n = __hpvm__createNodeND(1, dbl_sclr, length);
+	__hpvm__bindIn(dbl_sclr_n, 0 /*in     */, 0 /*in     */, HPVM_NONSTREAMING);
+	__hpvm__bindIn(dbl_sclr_n, 1 /*inSize */, 1 /*inSize */, HPVM_NONSTREAMING);
+	__hpvm__bindIn(dbl_sclr_n, 2 /*out    */, 2 /*out    */, HPVM_NONSTREAMING);
+	__hpvm__bindIn(dbl_sclr_n, 3 /*outSize*/, 3 /*outSize*/, HPVM_NONSTREAMING);
 }
 
-void square_scalar_fn(int* in, size_t inSize, int* out, size_t outSize) {
+void sqr_sclr(int* in, size_t inSize, int* out, size_t outSize) {
 	__hpvm__hint(hpvm::CPU_TARGET);
 	__hpvm__attributes(1, in, 1, out);
 	long i = __hpvm__getNodeInstanceID_x(__hpvm__getNode());
 	out[i] = in[i] * in[i];
 }
 
-void square_vector_fn(int* in, size_t inSize, int* out, size_t outSize, size_t length) {
+void sqr_vect(int* in, size_t inSize, int* out, size_t outSize, size_t length) {
 	__hpvm__hint(hpvm::CPU_TARGET);
 	__hpvm__attributes(1, in, 1, out);
 	
-	void* scalar = __hpvm__createNodeND(1, square_scalar_fn, length);
-	__hpvm__bindIn(scalar, 0 /*in     */, 0 /*in     */, HPVM_NONSTREAMING);
-	__hpvm__bindIn(scalar, 1 /*inSize */, 1 /*inSize */, HPVM_NONSTREAMING);
-	__hpvm__bindIn(scalar, 2 /*out    */, 2 /*out    */, HPVM_NONSTREAMING);
-	__hpvm__bindIn(scalar, 3 /*outSize*/, 3 /*outSize*/, HPVM_NONSTREAMING);
+	void* sqr_sclr_n = __hpvm__createNodeND(1, sqr_sclr, length);
+	__hpvm__bindIn(sqr_sclr_n, 0 /*in     */, 0 /*in     */, HPVM_NONSTREAMING);
+	__hpvm__bindIn(sqr_sclr_n, 1 /*inSize */, 1 /*inSize */, HPVM_NONSTREAMING);
+	__hpvm__bindIn(sqr_sclr_n, 2 /*out    */, 2 /*out    */, HPVM_NONSTREAMING);
+	__hpvm__bindIn(sqr_sclr_n, 3 /*outSize*/, 3 /*outSize*/, HPVM_NONSTREAMING);
 }
 
-void square_and_double_vector_fn(int* in, size_t inSize, int* tmp, size_t tmpSize, int* out, size_t outSize, size_t length, size_t length_dup) {
+void dbl_sqr_vect(int* in, size_t inSize, int* tmp, size_t tmpSize, int* out, size_t outSize, size_t length, size_t length_dup) {
 	__hpvm__hint(hpvm::CPU_TARGET);
 	__hpvm__attributes(1, in, 1, out);
 
-	void* double_vector = __hpvm__createNodeND(0, double_vector_fn);
-	void* square_vector = __hpvm__createNodeND(0, square_vector_fn);
+	void* dbl_vect_n = __hpvm__createNodeND(0, dbl_vect);
+	void* sqr_vect_n = __hpvm__createNodeND(0, sqr_vect);
 
-	__hpvm__bindIn(square_vector, 0 /*in        */, 0 /*in     */, HPVM_NONSTREAMING);
-	__hpvm__bindIn(square_vector, 1 /*inSize    */, 1 /*inSize */, HPVM_NONSTREAMING);
-	__hpvm__bindIn(square_vector, 2 /*tmp       */, 2 /*out    */, HPVM_NONSTREAMING);
-	__hpvm__bindIn(square_vector, 3 /*tmpSize   */, 3 /*outSize*/, HPVM_NONSTREAMING);
-	__hpvm__bindIn(square_vector, 6 /*length    */, 4 /*length */, HPVM_NONSTREAMING);
+	__hpvm__bindIn(sqr_vect_n, 0 /*in        */, 0 /*in     */, HPVM_NONSTREAMING);
+	__hpvm__bindIn(sqr_vect_n, 1 /*inSize    */, 1 /*inSize */, HPVM_NONSTREAMING);
+	__hpvm__bindIn(sqr_vect_n, 2 /*tmp       */, 2 /*out    */, HPVM_NONSTREAMING);
+	__hpvm__bindIn(sqr_vect_n, 3 /*tmpSize   */, 3 /*outSize*/, HPVM_NONSTREAMING);
+	__hpvm__bindIn(sqr_vect_n, 6 /*length    */, 4 /*length */, HPVM_NONSTREAMING);
 
-	__hpvm__bindIn(double_vector, 2 /*tmp       */, 0 /*in     */, HPVM_NONSTREAMING);
-	__hpvm__bindIn(double_vector, 3 /*tmpSize   */, 1 /*inSize */, HPVM_NONSTREAMING);
-	__hpvm__bindIn(double_vector, 4 /*out       */, 2 /*out    */, HPVM_NONSTREAMING);
-	__hpvm__bindIn(double_vector, 5 /*outSize   */, 3 /*outSize*/, HPVM_NONSTREAMING);
-	__hpvm__bindIn(double_vector, 7 /*length_dup*/, 4 /*length */, HPVM_NONSTREAMING);
+	__hpvm__bindIn(dbl_vect_n, 2 /*tmp       */, 0 /*in     */, HPVM_NONSTREAMING);
+	__hpvm__bindIn(dbl_vect_n, 3 /*tmpSize   */, 1 /*inSize */, HPVM_NONSTREAMING);
+	__hpvm__bindIn(dbl_vect_n, 4 /*out       */, 2 /*out    */, HPVM_NONSTREAMING);
+	__hpvm__bindIn(dbl_vect_n, 5 /*outSize   */, 3 /*outSize*/, HPVM_NONSTREAMING);
+	__hpvm__bindIn(dbl_vect_n, 7 /*length_dup*/, 4 /*length */, HPVM_NONSTREAMING);
 }
 
 struct __attribute__((__packed__)) InStruct {
@@ -93,21 +93,19 @@ int main(int argc, char *argv[]) {
 		out, length * sizeof(int),
 		length, length
 	};
-	void *DFG = __hpvm__launch(HPVM_NONSTREAMING, square_and_double_vector_fn, reinterpret_cast<void*>(&args));
-	__hpvm__wait(DFG);
+	void *dbl_sqr_vect_n = __hpvm__launch(HPVM_NONSTREAMING, dbl_sqr_vect, reinterpret_cast<void*>(&args));
+	__hpvm__wait(dbl_sqr_vect_n);
 
 	// Is this necessary?
 	llvm_hpvm_request_mem(out, length * sizeof(int));
 
 	for (size_t i = 0; i < length; ++i) {
-		assert(out[i] == i*i*2);
+		assert(out[i] == 2*i*i);
 	}
 
 	llvm_hpvm_untrack_mem(in);
 	llvm_hpvm_untrack_mem(tmp);
 	llvm_hpvm_untrack_mem(out);
-
-	__hpvm__wait(DFG);
 
 	__hpvm__cleanup();
 

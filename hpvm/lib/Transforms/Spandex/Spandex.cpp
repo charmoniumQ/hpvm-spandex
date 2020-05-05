@@ -7,10 +7,8 @@
 Anticipate errors related to intrinsics not found. Compile for real with
 
     ./scripts/hpvm_build.sh
-
 */
 
-#include <memory>
 #include <unordered_map>
 
 // https://llvm.org/docs/ProgrammersManual.html#fine-grained-debug-info-with-debug-type-and-the-debug-only-option
@@ -21,6 +19,7 @@ Anticipate errors related to intrinsics not found. Compile for real with
 #include "SupportHPVM/DFGraph.h"
 #include "Spandex/Spandex.h"
 #include "type_util.hpp"
+#include "graph_util.hpp"
 
 using namespace llvm;
 using namespace builddfg;
@@ -82,40 +81,6 @@ std::unordered_map<Port, Port> get_edges(const DFInternalNode *N) {
   return geh.get_edges();
 }
 
-template <typename Node>
-std::unordered_map<Port, Port>
-get_relaxed_edges(const std::unordered_map<Node, Node> &edges,
-                  std::function<bool(const Node &)> keep_node,
-                  bool ignore_dead_ends = false) {
-  std::unordered_map<Port, Port> relaxed_edges;
-
-  for (auto edge : edges) {
-    Port src = edge.first;
-    Port dst = edge.second;
-    if (keep_node(src)) {
-      Port eventual_dst = dst;
-      while (!keep_node(eventual_dst)) {
-        if (edges.count(eventual_dst) == 0) {
-          if (ignore_dead_ends) {
-            continue;
-          } else {
-            LLVM_DEBUG(dbgs() << src << " dead ends at " << dst
-                              << " which is not keepable\n");
-            assert(false);
-          }
-        } else {
-          LLVM_DEBUG(dbgs() << src << " -> ... -> " << eventual_dst << " -> "
-                            << edges.at(eventual_dst) << "\n");
-          eventual_dst = edges.at(eventual_dst);
-        }
-      }
-      assert(keep_node(src) && keep_node(eventual_dst));
-      relaxed_edges.insert(make_pair(src, eventual_dst));
-    }
-  }
-  return relaxed_edges;
-}
-
 class Spandex::impl {
 public:
   Spandex &thisp;
@@ -138,10 +103,11 @@ public:
            "This pass doesn't work for more than one HPVM DFG");
 
     if (!roots.empty()) {
-      for (auto root : roots) {
+      for (const auto &root : roots) {
         auto edges = get_edges(root);
 
-        LLVM_DEBUG(dbgs() << "edges:\n" << edges << "\n");
+        LLVM_DEBUG(dbgs() << "edges:\n");
+        LLVM_DEBUG(dump_graphviz(dbgs(), edges));
 
         // auto relaxed_edges =
         //     get_relaxed_edges<Port>(edges, [root](const Port &p) -> bool {
