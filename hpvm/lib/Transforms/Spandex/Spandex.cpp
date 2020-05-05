@@ -143,13 +143,13 @@ public:
 
         LLVM_DEBUG(dbgs() << "edges:\n" << edges << "\n");
 
-        auto relaxed_edges =
-            get_relaxed_edges<Port>(edges, [root](const Port &p) -> bool {
-              return (p.N->getFuncPointer() == root->getFuncPointer()) ||
-                     p.N->getInstruction();
-            });
+        // auto relaxed_edges =
+        //     get_relaxed_edges<Port>(edges, [root](const Port &p) -> bool {
+        //       return (p.N->getFuncPointer() == root->getFuncPointer()) ||
+        //              p.N->getInstruction();
+        //     });
 
-        LLVM_DEBUG(dbgs() << "relaxed edges:\n" << relaxed_edges << "\n");
+        // LLVM_DEBUG(dbgs() << "relaxed edges:\n" << relaxed_edges << "\n");
       }
       return true;
 
