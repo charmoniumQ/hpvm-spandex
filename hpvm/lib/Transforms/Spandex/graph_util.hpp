@@ -55,14 +55,25 @@ get_nodes(const std::unordered_map<Node, std::unordered_set<Node>> &edges) {
 
 llvm::raw_ostream &dump_graphviz(llvm::raw_ostream &os,
                                  const std::unordered_map<Port, std::unordered_set<Port>> &edges) {
-  os << "strict digraph {\n";
+  os << "digraph structs {\n";
 
   os << "\tnode [shape=record];\n";
 
   std::unordered_set<DFNode const*> dfnodes;
-  for (const auto& node : get_nodes(edges)) {
-	  // omit port info
-	  dfnodes.insert(node.N);
+  std::unordered_map<DFNode const*, unsigned int> dfnode_inps;
+  std::unordered_map<DFNode const*, unsigned int> dfnode_outs;
+  for (const auto &edge : edges) {
+	  for (const auto &node : edge.second) {
+		  auto& src = node;
+		  auto& dst = edge.first;
+
+		  // omit port info
+		  dfnodes.insert(src.N);
+		  dfnodes.insert(dst.N);
+
+		  dfnode_inps[dst.N] = std::max(dfnode_inps[dst.N], dst.pos+1);
+		  dfnode_outs[src.N] = std::max(dfnode_outs[src.N], src.pos+1);
+	  }
   }
 
   for (const auto& node : dfnodes) {
@@ -70,14 +81,14 @@ llvm::raw_ostream &dump_graphviz(llvm::raw_ostream &os,
 		 << "\"" << *node << "\" "
 		 << "["
 		 << "label=\"{";
-	  for (size_t i = 0; i < node->indfedge_size(); ++i) {
+	  for (size_t i = 0; i < dfnode_outs[node]; ++i) {
 		  if (i != 0) {
 			  os << "|";
 		  }
 		  os << "<i" << i << ">i" << i;
 	  }
 	  os << "}|" << *node << "|{";
-	  for (size_t i = 0; i < node->outdfedge_size(); ++i) {
+	  for (size_t i = 0; i < dfnode_inps[node]; ++i) {
 		  if (i != 0) {
 			  os << "|";
 		  }
@@ -99,8 +110,8 @@ llvm::raw_ostream &dump_graphviz(llvm::raw_ostream &os,
 			 << "-> "
 			 << "\"" << *dst.N << "\" "
 			 << "["
-			 << "headport=o" << src.pos << ", "
-			 << "tailport=i" << dst.pos << ", "
+			 << "headport=i" << dst.pos << ", "
+			 << "tailport=o" << src.pos << ", "
 			 << "];\n";
 	  }
   }

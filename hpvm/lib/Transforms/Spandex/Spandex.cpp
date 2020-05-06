@@ -25,7 +25,6 @@ Anticipate errors related to intrinsics not found. Compile for real with
 using namespace llvm;
 using namespace builddfg;
 using namespace spandex;
-using namespace std;
 
 #define foreach(type, i, collection)                                           \
   for (type i = collection##begin(); i != collection##end(); ++i)
@@ -110,8 +109,12 @@ public:
       for (const auto &root : roots) {
         auto edges = get_edges(root);
 
-        LLVM_DEBUG(dbgs() << "edges:\n");
-        LLVM_DEBUG(dump_graphviz(dbgs(), edges));
+		{
+			std::error_code EC;
+			raw_fd_ostream stream {StringRef{"flow.dot"}, EC};
+			assert(!EC);
+			dump_graphviz(stream, edges);
+		}
 
         // auto relaxed_edges =
         //     get_relaxed_edges<Port>(edges, [root](const Port &p) -> bool {
