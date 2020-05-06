@@ -1,3 +1,6 @@
+#ifndef TYPE_UTIL_HPP
+#define TYPE_UTIL_HPP
+
 #include "SupportHPVM/DFGraph.h"
 #include <utility>
 #include <string>
@@ -83,3 +86,5 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &stream,
   }
   return stream << "]";
 }
+
+#endif

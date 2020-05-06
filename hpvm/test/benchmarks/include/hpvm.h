@@ -76,6 +76,9 @@ void llvm_hpvm_request_mem(void *, size_t) noexcept;
 const unsigned int HPVM_STREAMING = 1;
 const unsigned int HPVM_NONSTREAMING = 0;
 
+const unsigned int HPVM_ALL_TO_ALL = 1;
+const unsigned int HPVM_ONE_TO_ONE = 0;
+
 #ifdef __cplusplus
 }
 #endif

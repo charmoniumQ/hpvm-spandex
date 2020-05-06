@@ -10,6 +10,7 @@ Anticipate errors related to intrinsics not found. Compile for real with
 */
 
 #include <unordered_map>
+#include <unordered_set>
 
 // https://llvm.org/docs/ProgrammersManual.html#fine-grained-debug-info-with-debug-type-and-the-debug-only-option
 #define DEBUG_TYPE "Spandex"
@@ -31,9 +32,10 @@ using namespace std;
 
 class get_edges_helper : public DFNodeVisitor {
 private:
-  std::unordered_map<Port, Port> edges;
+	std::unordered_map<Port, std::unordered_set<Port>> edges;
 
 public:
+
   const DFNode *normalize(const DFNode *orig, bool src) {
     if (orig->getKind() == DFNode::InternalNode) {
       DFInternalNode *orig2 = const_cast<DFInternalNode *>(
@@ -44,6 +46,7 @@ public:
       return orig;
     }
   }
+
   const DFNode *normalize_dst(const DFNode *dst) {
     return isa<DFInternalNode>(dst)
                ? (reinterpret_cast<const DFInternalNode *>(dst))
@@ -51,13 +54,14 @@ public:
                      ->getEntry()
                : dst;
   }
+
   virtual void visit2(const DFNode *N) {
     foreach (auto, edge, N->outdfedge_) {
       Port src{normalize((*edge)->getSourceDF(), true),
                (*edge)->getSourcePosition()};
       Port dst{normalize((*edge)->getDestDF(), false),
                (*edge)->getDestPosition()};
-      edges.insert(make_pair(src, dst));
+	  edges[src].insert(dst);
     }
   }
 
@@ -70,10 +74,10 @@ public:
   virtual void visit(DFLeafNode *N) {
     visit2(reinterpret_cast<const DFNode *>(N));
   }
-  std::unordered_map<Port, Port> get_edges() { return edges; }
+	std::unordered_map<Port, std::unordered_set<Port>> get_edges() { return edges; }
 };
 
-std::unordered_map<Port, Port> get_edges(const DFInternalNode *N) {
+std::unordered_map<Port, std::unordered_set<Port>> get_edges(const DFInternalNode *N) {
   get_edges_helper geh;
   // I know this visitor does not modify the graph a priori
   // but the graph visitor API (not owned by me) is marked as non-const
