@@ -33,6 +33,9 @@ struct Port {
   bool operator==(const Port &other) const {
     return N == other.N && pos == other.pos;
   }
+  llvm::Type *get_type() const {
+    return (N->getFuncPointer()->arg_begin() + pos)->getType();
+  }
 };
 
 namespace std {
@@ -48,6 +51,10 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &stream,
                               const llvm::DFNode &N) {
   return stream << demangle(N.getFuncPointer()->getName().str()) << "("
                 << N.getLevel() << "," << N.getRank() << ")";
+}
+llvm::raw_ostream &operator<<(llvm::raw_ostream &stream,
+                              llvm::DFNode const *N) {
+  return stream << *N;
 }
 } // namespace llvm
 
@@ -71,20 +78,20 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &stream,
 }
 } // namespace std
 
-template <typename Collection>
-llvm::raw_ostream &operator<<(llvm::raw_ostream &stream,
-                              const Collection &collection) {
-  stream << "[";
-  typename Collection::const_iterator it = collection.cbegin();
-  if (it != collection.cend()) {
-    stream << *it;
-    ++it;
-  }
-  while (it != collection.cend()) {
-    stream << ", " << *it;
-    ++it;
-  }
-  return stream << "]";
-}
+// template <typename Collection>
+// llvm::raw_ostream &operator<<(llvm::raw_ostream &stream,
+//                               const Collection &collection) {
+//   stream << "[";
+//   typename Collection::const_iterator it = collection.cbegin();
+//   if (it != collection.cend()) {
+//     stream << *it;
+//     ++it;
+//   }
+//   while (it != collection.cend()) {
+//     stream << ", " << *it;
+//     ++it;
+//   }
+//   return stream << "]";
+// }
 
 #endif

@@ -3,15 +3,15 @@
 #include <cassert>
 #include <hpvm.h>
 
-void dbl_sclr(int* in, size_t inSize, int* out, size_t outSize, size_t dummy) {
+void dbl_sclr(int* in, size_t inSize, int* out, size_t outSize) {
 	__hpvm__hint(hpvm::CPU_TARGET);
 	__hpvm__attributes(1, in, 1, out);
 	long i = __hpvm__getNodeInstanceID_x(__hpvm__getNode());
 	out[i] = in[i] + in[i];
-	__hpvm__return(1, dummy);
+	__hpvm__return(1, outSize);
 }
 
-void dbl_vect(int* in, size_t inSize, int* out, size_t outSize, size_t length, size_t dummy) {
+void dbl_vect(int* in, size_t inSize, int* out, size_t outSize, size_t length) {
 	__hpvm__hint(hpvm::CPU_TARGET);
 	__hpvm__attributes(1, in, 1, out);
 	
@@ -20,19 +20,18 @@ void dbl_vect(int* in, size_t inSize, int* out, size_t outSize, size_t length, s
 	__hpvm__bindIn(dbl_sclr_n, 1 /*inSize */, 1 /*inSize */, HPVM_NONSTREAMING);
 	__hpvm__bindIn(dbl_sclr_n, 2 /*out    */, 2 /*out    */, HPVM_NONSTREAMING);
 	__hpvm__bindIn(dbl_sclr_n, 3 /*outSize*/, 3 /*outSize*/, HPVM_NONSTREAMING);
-	__hpvm__bindIn(dbl_sclr_n, 5 /*dummy  */, 4 /*dummy  */, HPVM_NONSTREAMING);
 	__hpvm__bindOut(dbl_sclr_n, 0 /*outSize*/, 0 /*outSize*/, HPVM_NONSTREAMING);
 }
 
-void sqr_sclr(int* in, size_t inSize, int* out, size_t outSize, size_t dummy) {
+void sqr_sclr(int* in, size_t inSize, int* out, size_t outSize) {
 	__hpvm__hint(hpvm::CPU_TARGET);
 	__hpvm__attributes(1, in, 1, out);
 	long i = __hpvm__getNodeInstanceID_x(__hpvm__getNode());
 	out[i] = in[i] * in[i];
-	__hpvm__return(1, dummy);
+	__hpvm__return(1, outSize);
 }
 
-void sqr_vect(int* in, size_t inSize, int* out, size_t outSize, size_t length, size_t dummy) {
+void sqr_vect(int* in, size_t inSize, int* out, size_t outSize, size_t length) {
 	__hpvm__hint(hpvm::CPU_TARGET);
 	__hpvm__attributes(1, in, 1, out);
 	
@@ -41,11 +40,10 @@ void sqr_vect(int* in, size_t inSize, int* out, size_t outSize, size_t length, s
 	__hpvm__bindIn(sqr_sclr_n, 1 /*inSize */, 1 /*inSize */, HPVM_NONSTREAMING);
 	__hpvm__bindIn(sqr_sclr_n, 2 /*out    */, 2 /*out    */, HPVM_NONSTREAMING);
 	__hpvm__bindIn(sqr_sclr_n, 3 /*outSize*/, 3 /*outSize*/, HPVM_NONSTREAMING);
-	__hpvm__bindIn(sqr_sclr_n, 5 /*dummy  */, 4 /*dummy */, HPVM_NONSTREAMING);
 	__hpvm__bindOut(sqr_sclr_n, 0 /*outSize*/, 0 /*outSize*/, HPVM_NONSTREAMING);
 }
 
-void dbl_sqr_vect(int* in, size_t inSize, int* tmp, size_t tmpSize, int* out, size_t outSize, size_t length, size_t length_dup, size_t dummy) {
+void dbl_sqr_vect(int* in, size_t inSize, int* tmp, size_t tmpSize, int* out, size_t outSize, size_t length) {
 	__hpvm__hint(hpvm::CPU_TARGET);
 	__hpvm__attributes(2, in, tmp, 2, out, tmp);
 
@@ -57,32 +55,25 @@ void dbl_sqr_vect(int* in, size_t inSize, int* tmp, size_t tmpSize, int* out, si
 	__hpvm__bindIn(sqr_vect_n, 2 /*tmp       */, 2 /*out    */, HPVM_NONSTREAMING);
 	__hpvm__bindIn(sqr_vect_n, 3 /*tmpSize   */, 3 /*outSize*/, HPVM_NONSTREAMING);
 	__hpvm__bindIn(sqr_vect_n, 6 /*length    */, 4 /*length */, HPVM_NONSTREAMING);
-	__hpvm__bindIn(sqr_vect_n, 8 /*dummy     */, 5 /*dummy  */, HPVM_NONSTREAMING);
 
-	__hpvm__edge(sqr_vect_n, dbl_vect_n, HPVM_ONE_TO_ONE, 0, 5 /*dummy*/, HPVM_NONSTREAMING);
+	__hpvm__edge(sqr_vect_n, dbl_vect_n, HPVM_ONE_TO_ONE, 0, 1 /*inSize*/, HPVM_NONSTREAMING);
 
 	__hpvm__bindIn(dbl_vect_n, 2 /*tmp       */, 0 /*in     */, HPVM_NONSTREAMING);
-	__hpvm__bindIn(dbl_vect_n, 3 /*tmpSize   */, 1 /*inSize */, HPVM_NONSTREAMING);
 	__hpvm__bindIn(dbl_vect_n, 4 /*out       */, 2 /*out    */, HPVM_NONSTREAMING);
 	__hpvm__bindIn(dbl_vect_n, 5 /*outSize   */, 3 /*outSize*/, HPVM_NONSTREAMING);
-	__hpvm__bindIn(dbl_vect_n, 7 /*length_dup*/, 4 /*length */, HPVM_NONSTREAMING);
+	__hpvm__bindIn(dbl_vect_n, 6 /*length    */, 4 /*length */, HPVM_NONSTREAMING);
 	__hpvm__bindOut(dbl_vect_n, 0, 0, HPVM_NONSTREAMING);
 }
 
 struct __attribute__((__packed__)) OutStruct {
-	size_t dummy;
+	size_t outSize;
 };
 
 struct __attribute__((__packed__)) InStruct {
-	int* in;
-	size_t inSize;
-	int* tmp;
-	size_t tmpSize;
-	int* out;
-	size_t outSize;
+	int* in; size_t inSize;
+	int* tmp; size_t tmpSize;
+	int* out; size_t outSize;
 	size_t length;
-	size_t length_dup;
-	size_t dummy;
 	OutStruct outStr;
 };
 
@@ -107,8 +98,7 @@ int main(int argc, char *argv[]) {
 		in, length * sizeof(int),
 		tmp, length * sizeof(int),
 		out, length * sizeof(int),
-		length, length,
-		0,
+		length,
 		{1},
 	};
 	void *dbl_sqr_vect_n = __hpvm__launch(HPVM_NONSTREAMING, dbl_sqr_vect, reinterpret_cast<void*>(&args));
@@ -128,7 +118,5 @@ int main(int argc, char *argv[]) {
 
 	__hpvm__cleanup();
 
-	assert(args.outStr.dummy == 0);
-
-	return args.outStr.dummy;
+	return 0;
 }

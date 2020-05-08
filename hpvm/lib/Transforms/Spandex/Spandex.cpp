@@ -31,10 +31,9 @@ using namespace spandex;
 
 class get_edges_helper : public DFNodeVisitor {
 private:
-	std::unordered_map<Port, std::unordered_set<Port>> edges;
+  std::unordered_map<Port, std::unordered_set<Port>> edges;
 
 public:
-
   const DFNode *normalize(const DFNode *orig, bool src) {
     if (orig->getKind() == DFNode::InternalNode) {
       DFInternalNode *orig2 = const_cast<DFInternalNode *>(
@@ -60,7 +59,7 @@ public:
                (*edge)->getSourcePosition()};
       Port dst{normalize((*edge)->getDestDF(), false),
                (*edge)->getDestPosition()};
-	  edges[src].insert(dst);
+      edges[src].insert(dst);
     }
   }
 
@@ -73,15 +72,55 @@ public:
   virtual void visit(DFLeafNode *N) {
     visit2(reinterpret_cast<const DFNode *>(N));
   }
-	std::unordered_map<Port, std::unordered_set<Port>> get_edges() { return edges; }
+  std::unordered_map<Port, std::unordered_set<Port>> get_edges() {
+    return edges;
+  }
 };
 
-std::unordered_map<Port, std::unordered_set<Port>> get_edges(const DFInternalNode *N) {
+std::unordered_map<Port, std::unordered_set<Port>>
+get_edges(const DFInternalNode *N) {
   get_edges_helper geh;
   // I know this visitor does not modify the graph a priori
   // but the graph visitor API (not owned by me) is marked as non-const
   const_cast<DFInternalNode *>(N)->applyDFNodeVisitor(geh);
   return geh.get_edges();
+}
+
+std::unordered_map<Port, std::unordered_set<Port>> get_ptr_edges(
+    const std::unordered_map<Port, std::unordered_set<Port>> &edges,
+    const std::unordered_map<DFNode const *, std::unordered_set<DFNode const *>>
+        &coarse_edges) {
+  std::unordered_map<Port, std::unordered_set<Port>> result;
+
+  for (const auto &edge : edges) {
+    if (edge.second.size() > 1) {
+      // Multiple destinations for this param.
+      std::vector<Port> recipients{edge.second.begin(), edge.second.end()};
+      if (recipients[0].get_type()->isPointerTy()) {
+        // Is a pointer type
+        assert(
+            std::all_of(recipients.begin(), recipients.end(),
+                        [](Port p) { return p.get_type()->isPointerTy(); }) &&
+            "If one is pointer, all are pointers");
+
+        // Find out which one feeds the other.
+
+        // Only support one reader and one writer for now
+
+        assert(recipients.size() == 2);
+        if (is_descendant(coarse_edges, recipients[0].N, recipients[1].N)) {
+          result[recipients[0]].insert(recipients[1]);
+        } else {
+          assert(
+              is_descendant(coarse_edges, recipients[1].N, recipients[0].N) &&
+              "Two nodes which consume a pointer are unordered with respect to "
+              "each other, so they race to execute.");
+          result[recipients[1]].insert(recipients[0]);
+        }
+      }
+    }
+  }
+  return result;
 }
 
 class Spandex::impl {
@@ -108,21 +147,29 @@ public:
     if (!roots.empty()) {
       for (const auto &root : roots) {
         auto edges = get_edges(root);
+        {
+          std::error_code EC;
+          raw_fd_ostream stream{StringRef{"flow.dot"}, EC};
+          assert(!EC);
+          dump_graphviz_ports(stream, edges);
+        }
 
-		{
-			std::error_code EC;
-			raw_fd_ostream stream {StringRef{"flow.dot"}, EC};
-			assert(!EC);
-			dump_graphviz(stream, edges);
-		}
+        auto coarse_edges = map_graph<Port, DFNode const *>(
+            edges, [](auto port) { return port.N; });
+        {
+          std::error_code EC;
+          raw_fd_ostream stream{StringRef{"flow_coarse.dot"}, EC};
+          assert(!EC);
+          dump_graphviz(stream, coarse_edges);
+        }
 
-        // auto relaxed_edges =
-        //     get_relaxed_edges<Port>(edges, [root](const Port &p) -> bool {
-        //       return (p.N->getFuncPointer() == root->getFuncPointer()) ||
-        //              p.N->getInstruction();
-        //     });
-
-        // LLVM_DEBUG(dbgs() << "relaxed edges:\n" << relaxed_edges << "\n");
+        auto ptr_edges = get_ptr_edges(edges, coarse_edges);
+        {
+          std::error_code EC;
+          raw_fd_ostream stream{StringRef{"flow_ptr.dot"}, EC};
+          assert(!EC);
+          dump_graphviz_ports(stream, ptr_edges);
+        }
       }
       return true;
 
