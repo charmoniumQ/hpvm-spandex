@@ -861,7 +861,10 @@ Value *CGT_CPU::getInValueAt(DFNode *Child, unsigned i, Function *ParentF_CPU,
   // Find the incoming edge at the requested input port
   DFEdge *E = Child->getInDFEdgeAt(i);
   DEBUG(errs() << "getInValueAt " << Child->getFuncPointer()->getName().str() << "[" << i << "]" "\n");
-  assert(E && "No incoming edge or binding for input element!");
+  if (!E) {
+	  errs() << "getInValueAt " << Child->getFuncPointer()->getName().str() << "[" << i << "]" "\n";
+	  assert(false);
+  }
   // Find the Source DFNode associated with the incoming edge
   DFNode *SrcDF = E->getSourceDF();
 

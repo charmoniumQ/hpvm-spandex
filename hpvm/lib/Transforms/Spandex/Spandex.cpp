@@ -29,9 +29,9 @@ using namespace spandex;
 #define foreach(type, i, collection)                                           \
   for (type i = collection##begin(); i != collection##end(); ++i)
 
-class get_edges_helper : public DFNodeVisitor {
+class get_naive_dfg_helper : public DFNodeVisitor {
 private:
-  std::unordered_map<Port, std::unordered_set<Port>> edges;
+  std::unordered_map<Port, std::unordered_set<Port>> naive_dfg;
 
 public:
   const DFNode *normalize(const DFNode *orig, bool src) {
@@ -59,7 +59,7 @@ public:
                (*edge)->getSourcePosition()};
       Port dst{normalize((*edge)->getDestDF(), false),
                (*edge)->getDestPosition()};
-      edges[src].insert(dst);
+      naive_dfg[src].insert(dst);
     }
   }
 
@@ -72,27 +72,27 @@ public:
   virtual void visit(DFLeafNode *N) {
     visit2(reinterpret_cast<const DFNode *>(N));
   }
-  std::unordered_map<Port, std::unordered_set<Port>> get_edges() {
-    return edges;
+  std::unordered_map<Port, std::unordered_set<Port>> get_naive_dfg() {
+    return naive_dfg;
   }
 };
 
 std::unordered_map<Port, std::unordered_set<Port>>
-get_edges(const DFInternalNode *N) {
-  get_edges_helper geh;
+get_naive_dfg(const DFInternalNode *N) {
+  get_naive_dfg_helper geh;
   // I know this visitor does not modify the graph a priori
   // but the graph visitor API (not owned by me) is marked as non-const
   const_cast<DFInternalNode *>(N)->applyDFNodeVisitor(geh);
-  return geh.get_edges();
+  return geh.get_naive_dfg();
 }
 
-std::unordered_map<Port, std::unordered_set<Port>> get_ptr_edges(
-    const std::unordered_map<Port, std::unordered_set<Port>> &edges,
+std::unordered_map<Port, std::unordered_set<Port>> get_ptr_aware_dfg(
+    const std::unordered_map<Port, std::unordered_set<Port>> &naive_dfg,
     const std::unordered_map<DFNode const *, std::unordered_set<DFNode const *>>
-        &coarse_edges) {
+        &coarse_naive_dfg) {
   std::unordered_map<Port, std::unordered_set<Port>> result;
 
-  for (const auto &edge : edges) {
+  for (const auto &edge : naive_dfg) {
     if (edge.second.size() > 1) {
       // Multiple destinations for this param.
       std::vector<Port> recipients{edge.second.begin(), edge.second.end()};
@@ -108,19 +108,44 @@ std::unordered_map<Port, std::unordered_set<Port>> get_ptr_edges(
         // Only support one reader and one writer for now
 
         assert(recipients.size() == 2);
-        if (is_descendant(coarse_edges, recipients[0].N, recipients[1].N)) {
-          result[recipients[0]].insert(recipients[1]);
+        unsigned int inp;
+		unsigned int out;
+        if (is_descendant(coarse_naive_dfg, recipients[0].N, recipients[1].N)) {
+          out = 0;
+          inp = 1;
         } else {
+          out = 1;
+          inp = 0;
           assert(
-              is_descendant(coarse_edges, recipients[1].N, recipients[0].N) &&
+              is_descendant(coarse_naive_dfg, recipients[1].N, recipients[0].N) &&
               "Two nodes which consume a pointer are unordered with respect to "
               "each other, so they race to execute.");
-          result[recipients[1]].insert(recipients[0]);
+
         }
+		LLVM_DEBUG(dbgs() << recipients[out] << " --ptr--> " << recipients[inp] << "\n");
+        assert( recipients[out].N->getFuncPointer()->hasAttribute(recipients[out].pos+1, Attribute::Out));
+        assert(!recipients[out].N->getFuncPointer()->hasAttribute(recipients[out].pos+1, Attribute::In ));
+        assert( recipients[inp].N->getFuncPointer()->hasAttribute(recipients[inp].pos+1, Attribute::In ));
+        assert(!recipients[inp].N->getFuncPointer()->hasAttribute(recipients[inp].pos+1, Attribute::Out));
+        result[recipients[out]].insert(recipients[inp]);
       }
     }
   }
   return result;
+}
+
+Port responsible_leaf(std::unordered_map<Port, std::unordered_set<Port>> dfg, const Port& port) {
+	for (Port descendant : bfs(dfg, port)) {
+		if (descendant.N->getKind() == DFNode::LeafNode && descendant.N->getRank() == DFNode::LeafNode
+			&& !descendant.N->isDummyNode()) {
+			return descendant;
+		}
+	}
+	errs() << "No leaf responsible for port " << port << ":\n";
+	for (const Port& descendant : bfs(dfg, port)) {
+		errs() << descendant << " is not leaf\n";
+	}
+	assert(false);
 }
 
 class Spandex::impl {
@@ -146,30 +171,40 @@ public:
 
     if (!roots.empty()) {
       for (const auto &root : roots) {
-        auto edges = get_edges(root);
+        auto naive_dfg = get_naive_dfg(root);
         {
           std::error_code EC;
-          raw_fd_ostream stream{StringRef{"flow.dot"}, EC};
+          raw_fd_ostream stream{StringRef{"naive_dfg.dot"}, EC};
           assert(!EC);
-          dump_graphviz_ports(stream, edges);
+          dump_graphviz_ports(stream, naive_dfg);
         }
 
-        auto coarse_edges = map_graph<Port, DFNode const *>(
-            edges, [](auto port) { return port.N; });
+        auto coarse_naive_dfg = map_graph<Port, DFNode const *>(
+            naive_dfg, [](auto port) { return port.N; });
         {
           std::error_code EC;
-          raw_fd_ostream stream{StringRef{"flow_coarse.dot"}, EC};
+          raw_fd_ostream stream{StringRef{"coarse_naive_dfg.dot"}, EC};
           assert(!EC);
-          dump_graphviz(stream, coarse_edges);
+          dump_graphviz(stream, coarse_naive_dfg);
         }
 
-        auto ptr_edges = get_ptr_edges(edges, coarse_edges);
+        auto ptr_aware_dfg = get_ptr_aware_dfg(naive_dfg, coarse_naive_dfg);
         {
           std::error_code EC;
-          raw_fd_ostream stream{StringRef{"flow_ptr.dot"}, EC};
+          raw_fd_ostream stream{StringRef{"ptr_aware_dfg.dot"}, EC};
           assert(!EC);
-          dump_graphviz_ports(stream, ptr_edges);
+          dump_graphviz_ports(stream, ptr_aware_dfg);
         }
+
+        auto ptr_aware_leaf_dfg = map_graph<Port, Port>(
+			ptr_aware_dfg, [&](auto port) { return responsible_leaf(naive_dfg, port); });
+        {
+          std::error_code EC;
+          raw_fd_ostream stream{StringRef{"ptr_aware_leaf_dfg.dot"}, EC};
+          assert(!EC);
+          dump_graphviz_ports(stream, ptr_aware_leaf_dfg);
+        }
+
       }
       return true;
 
