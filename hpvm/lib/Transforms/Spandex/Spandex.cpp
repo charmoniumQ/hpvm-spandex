@@ -136,14 +136,13 @@ std::unordered_map<Port, std::unordered_set<Port>> get_ptr_aware_dfg(
 
 Port responsible_leaf(std::unordered_map<Port, std::unordered_set<Port>> dfg, const Port& port) {
 	for (Port descendant : bfs(dfg, port)) {
-		if (descendant.N->getKind() == DFNode::LeafNode && descendant.N->getRank() == DFNode::LeafNode
-			&& !descendant.N->isDummyNode()) {
+		if (descendant.N->getKind() == DFNode::LeafNode && !descendant.N->isDummyNode()) {
 			return descendant;
 		}
 	}
 	errs() << "No leaf responsible for port " << port << ":\n";
 	for (const Port& descendant : bfs(dfg, port)) {
-		errs() << descendant << " is not leaf\n";
+		errs() << descendant << " is not leaf " << (descendant.N->getKind() == DFNode::LeafNode) << descendant.N->isEntryNode() << descendant.N->isExitNode() << "\n";
 	}
 	assert(false);
 }
@@ -165,9 +164,6 @@ public:
     BuildDFG &DFG = thisp.getAnalysis<BuildDFG>();
 
     std::vector<DFInternalNode *> roots = DFG.getRoots();
-
-    assert(roots.size() <= 1 &&
-           "This pass doesn't work for more than one HPVM DFG");
 
     if (!roots.empty()) {
       for (const auto &root : roots) {
@@ -204,6 +200,11 @@ public:
           assert(!EC);
           dump_graphviz_ports(stream, ptr_aware_leaf_dfg);
         }
+
+		for (const auto& producer_consumer : ptr_aware_leaf_dfg) {
+			auto producer = producer_consumer.first;
+			auto consumer = producer_consumer.second;
+		}
 
       }
       return true;
