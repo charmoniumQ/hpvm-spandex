@@ -1,0 +1,14 @@
+digraph structs {
+	node [shape=record, fontname="Courier New"];
+	graph [fontname="Courier New"];
+	edge [fontname="Courier New"];
+
+	B [label="B(i32* output, i64 size) \{\lentry:\l&nbsp;&nbsp;&nbsp;&nbsp;...\l&nbsp;&nbsp;&nbsp;&nbsp;store i32 %v, i32* output\l&nbsp;&nbsp;&nbsp;&nbsp;ret i64 size\l\}\l"];
+	A_entry [label="A_entry"];
+	C [label="C(i32* input, i64 size) \{\lentry:\l&nbsp;&nbsp;&nbsp;&nbsp;%v = load i32, i32* input\l&nbsp;&nbsp;&nbsp;&nbsp;...\l&nbsp;&nbsp;&nbsp;&nbsp;ret i64 size\l\}\l"];
+	A_exit [label="A_exit"];
+
+	A_entry -> B [label="i32*"];
+	B -> C [label="i32*"];
+	C -> A_exit [label="i32*"];
+}
