@@ -1,18 +1,18 @@
 digraph structs {
 	node [shape=record];
-	"B(int*, ulong)(2,2)" [label="{<i0>i0}|B(int*, ulong)(2,2)|{<o0>o0}"];
-	"B_c(int*, ulong)(2,1)" [label="{<i0>i0|<i1>i1}|B_c(int*, ulong)(2,1)|{<o0>o0}"];
-	"A(int*, ulong)(1,0)" [label="{}|A(int*, ulong)(1,0)|{<o0>o0|<o1>o1}"];
-	"B(int*, ulong)(2,0)" [label="{<i0>i0|<i1>i1}|B(int*, ulong)(2,0)|{<o0>o0|<o1>o1}"];
-	"C(int*, ulong)(1,2)" [label="{<i0>i0|<i1>i1}|C(int*, ulong)(1,2)|{<o0>o0}"];
-	"A(int*, ulong)(1,3)" [label="{<i0>i0}|A(int*, ulong)(1,3)|{}"];
+	"B.exit" [label="{<i0>i64}|B.exit|{<o0>i64}"];
+	"B_c" [label="{<i0>i32* tmp|<i1>i64 tmpSize}|B_c|{<o0>i64}"];
+	"A.entry" [label="{<i0>i32* tmp|<i1>i64 tmpSize}|A.entry|{<o0>i32*|<o1>i64}"];
+	"B.entry" [label="{<i0>i32* tmp|<i1>i64 tmpSize}|B.entry|{<o0>i32*|<o1>i64}"];
+	"C" [label="{<i0>i32* tmp|<i1>i64 tmpSize}|C|{<o0>i64}"];
+	"A.exit" [label="{<i0>i64}|A.exit|{<o0>i64}"];
 
-	"C(int*, ulong)(1,2)" -> "A(int*, ulong)(1,3)" [tailport=o0, headport=i0, ];
-	"A(int*, ulong)(1,0)" -> "B(int*, ulong)(2,0)" [tailport=o1, headport=i1, ];
-	"A(int*, ulong)(1,0)" -> "C(int*, ulong)(1,2)" [tailport=o0, headport=i0, ];
-	"A(int*, ulong)(1,0)" -> "B(int*, ulong)(2,0)" [tailport=o0, headport=i0, ];
-	"B_c(int*, ulong)(2,1)" -> "B(int*, ulong)(2,2)" [tailport=o0, headport=i0, ];
-	"B(int*, ulong)(2,2)" -> "C(int*, ulong)(1,2)" [tailport=o0, headport=i1, ];
-	"B(int*, ulong)(2,0)" -> "B_c(int*, ulong)(2,1)" [tailport=o1, headport=i1, ];
-	"B(int*, ulong)(2,0)" -> "B_c(int*, ulong)(2,1)" [tailport=o0, headport=i0, ];
+	"C" -> "A.exit" [tailport=o0, headport=i0, ];
+	"A.entry" -> "B.entry" [tailport=o1, headport=i1, ];
+	"A.entry" -> "C" [tailport=o0, headport=i0, ];
+	"A.entry" -> "B.entry" [tailport=o0, headport=i0, ];
+	"B_c" -> "B.exit" [tailport=o0, headport=i0, ];
+	"B.exit" -> "C" [tailport=o0, headport=i1, ];
+	"B.entry" -> "B_c" [tailport=o1, headport=i1, ];
+	"B.entry" -> "B_c" [tailport=o0, headport=i0, ];
 }

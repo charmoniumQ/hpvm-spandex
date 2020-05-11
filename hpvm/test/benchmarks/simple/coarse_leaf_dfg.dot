@@ -1,14 +1,11 @@
 strict digraph {
-	"dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,4)" ;
-	"dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,0)" ;
-	"dbl_sclr(int*, ulong, int*, ulong)(2,1)" ;
-	"nop(ulong)(1,1)" ;
-	"sqr_sclr(int*, ulong, int*, ulong)(2,1)" ;
+	"dbl_sqr_vect.exit" ;
+	"sqr_sclr" ;
+	"dbl_sqr_vect.entry" ;
+	"dbl_sclr" ;
 
-	"nop(ulong)(1,1)" -> "sqr_sclr(int*, ulong, int*, ulong)(2,1)" ;
-	"sqr_sclr(int*, ulong, int*, ulong)(2,1)" -> "dbl_sclr(int*, ulong, int*, ulong)(2,1)" ;
-	"dbl_sclr(int*, ulong, int*, ulong)(2,1)" -> "dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,4)" ;
-	"dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,0)" -> "nop(ulong)(1,1)" ;
-	"dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,0)" -> "dbl_sclr(int*, ulong, int*, ulong)(2,1)" ;
-	"dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,0)" -> "sqr_sclr(int*, ulong, int*, ulong)(2,1)" ;
+	"sqr_sclr" -> "dbl_sclr" ;
+	"dbl_sclr" -> "dbl_sqr_vect.exit" ;
+	"dbl_sqr_vect.entry" -> "sqr_sclr" ;
+	"dbl_sqr_vect.entry" -> "dbl_sclr" ;
 }

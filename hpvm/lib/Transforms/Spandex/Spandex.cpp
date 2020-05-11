@@ -37,7 +37,7 @@ public:
   }
 
   bool runOnModule(Module &M) {
-    LLVM_DEBUG(dbgs() << "\nSpandex pass\n");
+    LLVM_DEBUG(dbgs() << "Spandex pass start\n");
 
     builddfg::BuildDFG &DFG = thisp.getAnalysis<builddfg::BuildDFG>();
 
@@ -61,17 +61,19 @@ public:
 
         digraph<Port> mem_comm_dfg =
             get_mem_comm_dfg(leaf_dfg, coarse_leaf_dfg);
-        DUMP_GRAPHVIZ_PORTS(mem_comm_dfg);
+        DUMP_GRAPHVIZ_PORT_PTRS(mem_comm_dfg);
 
         // for (const auto& producer_consumer : ptr_aware_leaf_dfg) {
         // 	auto producer = producer_consumer.first;
         // 	auto consumer = producer_consumer.second;
         // }
       }
+	  LLVM_DEBUG(dbgs() << "Spandex pass done\n");
       return true;
 
     } else {
       // No DFG. Nothing for us to do;
+	  LLVM_DEBUG(dbgs() << "Spandex pass done\n");
       return false;
     }
   }

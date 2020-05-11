@@ -13,21 +13,17 @@ Utilities specific to HPVM DFGs.
 
 using namespace llvm;
 
-raw_ostream &dump_graphviz_ports(raw_ostream &os, const digraph<Port> &dfg) {
+raw_ostream &dump_graphviz_ports(raw_ostream &os, const digraph<Port> &dfg,
+                                 bool inps_only = false) {
   os << "digraph structs {\n";
 
   os << "\tnode [shape=record];\n";
 
   std::unordered_set<DFNode const *> dfnodes;
-  std::unordered_map<DFNode const *, unsigned int> dfnode_inps;
-  std::unordered_map<DFNode const *, unsigned int> dfnode_outs;
   for_each_adj<Port>(dfg, [&](const Port &src, const Port &dst) {
     // omit port info
     dfnodes.insert(src.N);
     dfnodes.insert(dst.N);
-
-    dfnode_inps[dst.N] = std::max(dfnode_inps[dst.N], dst.pos + 1);
-    dfnode_outs[src.N] = std::max(dfnode_outs[src.N], src.pos + 1);
   });
 
   for (DFNode const *node : dfnodes) {
@@ -35,21 +31,49 @@ raw_ostream &dump_graphviz_ports(raw_ostream &os, const digraph<Port> &dfg) {
        << "\"" << *node << "\" "
        << "["
        << "label=\"{";
-    for (size_t i = 0; i < dfnode_inps[node]; ++i) {
-      if (i != 0) {
-        os << "|";
-      }
-      os << "<i" << i << ">i" << i;
+	Function* fn = node->getFuncPointer();
+	StructType *ST = node->getOutputType();
+	if (node->isExitNode()) {
+		unsigned i = 0;
+		for (auto elem_it = ST->element_begin(); elem_it != ST->element_end(); ++elem_it, ++i) {
+			if (i != 0) {
+				os << "|";
+			}
+			os << "<i" << i << ">" << **elem_it;
+		}
+	} else {
+		unsigned i = 0;
+		for (auto arg_it = fn->arg_begin(); arg_it != fn->arg_end(); ++arg_it, ++i) {
+			if (i != 0) {
+				os << "|";
+			}
+			os << "<i" << i << ">" << *arg_it->getType() << " " << arg_it->getName();
+		}
+	}
+    os << "}|";
+    os << *node;
+    if (!inps_only) {
+      os << "|{";
+	  if (node->isEntryNode()) {
+		  unsigned i = 0;
+		  for (auto arg_it = fn->arg_begin(); arg_it != fn->arg_end(); ++arg_it, ++i) {
+			  if (i != 0) {
+				  os << "|";
+			  }
+			  os << "<o" << i << ">" << *arg_it->getType();
+		  }
+	  } else {
+		  unsigned i = 0;
+		  for (auto elem_it = ST->element_begin(); elem_it != ST->element_end(); ++elem_it, ++i) {
+			  if (i != 0) {
+				  os << "|";
+			  }
+			  os << "<o" << i << ">" << **elem_it;
+		  }
+	  }
+      os << "}";
     }
-    os << "}|" << *node << "|{";
-    for (size_t i = 0; i < dfnode_outs[node]; ++i) {
-      if (i != 0) {
-        os << "|";
-      }
-      os << "<o" << i << ">o" << i;
-    }
-    os << "}\""
-       << "];\n";
+    os << "\"];\n";
   }
 
   os << "\n";
@@ -61,8 +85,8 @@ raw_ostream &dump_graphviz_ports(raw_ostream &os, const digraph<Port> &dfg) {
        << "-> "
        << "\"" << *dst.N << "\" "
        << "["
-       << "tailport=o" << src.pos << ", "
-       << "headport=i" << dst.pos << ", "
+       << "tailport=" << (inps_only ? "i" : "o") << src.pos << ", "
+       << "headport=" << (inps_only ? "i" : "i") << dst.pos << ", "
        << "];\n";
   });
   os << "}\n";
@@ -75,6 +99,14 @@ raw_ostream &dump_graphviz_ports(raw_ostream &os, const digraph<Port> &dfg) {
     raw_fd_ostream stream{StringRef{#graph ".dot"}, EC};                       \
     assert(!EC);                                                               \
     dump_graphviz_ports(stream, graph);                                        \
+  }
+
+#define DUMP_GRAPHVIZ_PORT_PTRS(graph)                                         \
+  {                                                                            \
+    std::error_code EC;                                                        \
+    raw_fd_ostream stream{StringRef{#graph ".dot"}, EC};                       \
+    assert(!EC);                                                               \
+    dump_graphviz_ports(stream, graph, true);							\
   }
 
 class get_dfg_helper : public DFNodeVisitor {
@@ -91,14 +123,6 @@ public:
     } else {
       return orig;
     }
-  }
-
-  const DFNode *normalize_dst(const DFNode *dst) {
-    return isa<DFInternalNode>(dst)
-               ? (reinterpret_cast<const DFInternalNode *>(dst))
-                     ->getChildGraph()
-                     ->getEntry()
-               : dst;
   }
 
   virtual void visit2(const DFNode *N) {

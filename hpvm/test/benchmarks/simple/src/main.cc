@@ -3,10 +3,10 @@
 #include <cassert>
 #include <hpvm.h>
 
-void nop(size_t dummy) {
-	__hpvm__hint(hpvm::CPU_TARGET);
-	__hpvm__return(1, dummy);
-}
+// void nop(size_t dummy) {
+// 	__hpvm__hint(hpvm::CPU_TARGET);
+// 	__hpvm__return(1, dummy);
+// }
 
 void dbl_sclr(int* in, size_t inSize, int* out, size_t outSize) {
 	__hpvm__hint(hpvm::CPU_TARGET);
@@ -52,13 +52,13 @@ void dbl_sqr_vect(int* in, size_t inSize, int* tmp, size_t tmpSize, int* out, si
 	__hpvm__hint(hpvm::CPU_TARGET);
 	__hpvm__attributes(2, in, tmp, 2, out, tmp);
 
-	void* nop1_n = __hpvm__createNodeND(0, nop);
 	void* dbl_vect_n = __hpvm__createNodeND(0, dbl_vect);
 	void* sqr_vect_n = __hpvm__createNodeND(0, sqr_vect);
 
-	__hpvm__bindIn(nop1_n, 1 /*inSize    */, 0 /*dummy */, HPVM_NONSTREAMING);
-
-	__hpvm__edge(nop1_n, sqr_vect_n, HPVM_ONE_TO_ONE, 0 /*dummy*/, 1 /*inSize*/, HPVM_NONSTREAMING);
+	// void* nop1_n = __hpvm__createNodeND(0, nop);
+	// __hpvm__bindIn(nop1_n, 1 /*inSize    */, 0 /*dummy */, HPVM_NONSTREAMING);
+	// __hpvm__edge(nop1_n, sqr_vect_n, HPVM_ONE_TO_ONE, 0 /*dummy*/, 1 /*inSize*/, HPVM_NONSTREAMING);
+	__hpvm__bindIn(sqr_vect_n, 1 /*inSize    */, 1 /*dummy  */, HPVM_NONSTREAMING);
 
 	__hpvm__bindIn(sqr_vect_n, 0 /*in        */, 0 /*in     */, HPVM_NONSTREAMING);
 	__hpvm__bindIn(sqr_vect_n, 2 /*tmp       */, 2 /*out    */, HPVM_NONSTREAMING);

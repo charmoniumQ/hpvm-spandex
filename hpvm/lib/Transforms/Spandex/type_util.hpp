@@ -18,15 +18,16 @@ std::string demangle(const std::string &input) {
           ? input.substr(0, input.size() - 7)
           : input;
 
-  auto output =
+  char *output =
       abi::__cxa_demangle(real_input.c_str(), nullptr, nullptr, &status);
   if (status == 0) {
-    auto real_output = std::regex_replace(output, std::regex("unsigned "), "u");
-    return {real_output};
+    std::string real_output = std::regex_replace(output, std::regex("\\(.*\\)"), "");
+    return real_output;
   } else {
-    dbgs() << "abi::__cxa_demangle returned " << status << " on " << real_input
-           << "\n";
-    return {input};
+    // dbgs() << "abi::__cxa_demangle returned " << status << " on " <<
+    // real_input
+    //        << "\n";
+    return real_input;
   }
 }
 
@@ -53,8 +54,8 @@ template <> struct hash<Port> {
 namespace llvm {
 llvm::raw_ostream &operator<<(llvm::raw_ostream &stream,
                               const llvm::DFNode &N) {
-  return stream << demangle(N.getFuncPointer()->getName().str()) << "("
-                << N.getLevel() << "," << N.getRank() << ")";
+  return stream << demangle(N.getFuncPointer()->getName().str())
+				<< (N.isEntryNode() ? ".entry" : N.isExitNode() ? ".exit" : "");
 }
 llvm::raw_ostream &operator<<(llvm::raw_ostream &stream,
                               llvm::DFNode const *N) {

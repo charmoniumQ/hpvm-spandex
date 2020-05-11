@@ -46,9 +46,10 @@ HPVM_RT_LIB = $(HPVM_RT_PATH)/hpvm-rt.bc
 
 TESTGEN_OPTFLAGS = -load LLVMGenHPVM.so -genhpvm -globaldce
 
+TARGET = seq
 ifeq ($(TARGET),seq)
   DEVICE = CPU_TARGET
-  HPVM_OPTFLAGS = -load LLVMBuildDFG.so -load LLVMDFG2LLVM_CPU.so -load LLVMClearDFG.so -dfg2llvm-cpu -clearDFG
+  HPVM_OPTFLAGS = -load LLVMBuildDFG.so -load LLVMDFG2LLVM_CPU.so -load LLVMClearDFG.so -load Spandex.so -debug-only=Spandex -spandex -dfg2llvm-cpu -clearDFG
   HPVM_OPTFLAGS += -hpvm-timers-cpu
 else
   DEVICE = GPU_TARGET
