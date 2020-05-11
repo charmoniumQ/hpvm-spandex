@@ -1,6 +1,10 @@
 #ifndef TYPE_UTIL_HPP
 #define TYPE_UTIL_HPP
 
+/*
+Define novel HPVM-related types and augment existing ones.
+ */
+
 #include "SupportHPVM/DFGraph.h"
 #include <utility>
 #include <string>
@@ -9,11 +13,10 @@
 
 std::string demangle(const std::string &input) {
   int status = -1;
-  std::string real_input = input.substr(0, input.size() - 8)
-      // 	input.substr(input.size() - 8) == std::string{"_cloned_"}
-      // 	? input.substr(0, input.size() - 8)
-      // 	: input
-      ;
+  std::string real_input =
+      input.substr(input.size() - 7) == std::string{"_cloned"}
+          ? input.substr(0, input.size() - 7)
+          : input;
 
   auto output =
       abi::__cxa_demangle(real_input.c_str(), nullptr, nullptr, &status);
@@ -33,6 +36,7 @@ struct Port {
   bool operator==(const Port &other) const {
     return N == other.N && pos == other.pos;
   }
+  bool operator!=(const Port &other) const { return !(*this == other); }
   llvm::Type *get_type() const {
     return (N->getFuncPointer()->arg_begin() + pos)->getType();
   }

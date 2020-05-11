@@ -1,0 +1,7 @@
+digraph structs {
+	node [shape=record];
+	"C(int*, ulong)(1,2)" [label="{<i0>i0}|C(int*, ulong)(1,2)|{}"];
+	"B_c(int*, ulong)(2,1)" [label="{}|B_c(int*, ulong)(2,1)|{<o0>o0}"];
+
+	"B_c(int*, ulong)(2,1)" -> "C(int*, ulong)(1,2)" [tailport=o0, headport=i0, ];
+}

@@ -72,4 +72,4 @@ fi
 
 make -j${NUM_THREADS} -C "${BUILD_DIR}"
 
-build/bin/llvm-lit -v test/regressionTests
+#build/bin/llvm-lit -v test/regressionTests

@@ -1,0 +1,13 @@
+digraph structs {
+	node [shape=record];
+	"B_c(int*, ulong)(2,1)" [label="{<i0>i0|<i1>i1}|B_c(int*, ulong)(2,1)|{<o0>o0}"];
+	"A(int*, ulong)(1,0)" [label="{}|A(int*, ulong)(1,0)|{<o0>o0|<o1>o1}"];
+	"C(int*, ulong)(1,2)" [label="{<i0>i0|<i1>i1}|C(int*, ulong)(1,2)|{<o0>o0}"];
+	"A(int*, ulong)(1,3)" [label="{<i0>i0}|A(int*, ulong)(1,3)|{}"];
+
+	"C(int*, ulong)(1,2)" -> "A(int*, ulong)(1,3)" [tailport=o0, headport=i0, ];
+	"A(int*, ulong)(1,0)" -> "B_c(int*, ulong)(2,1)" [tailport=o1, headport=i1, ];
+	"A(int*, ulong)(1,0)" -> "B_c(int*, ulong)(2,1)" [tailport=o0, headport=i0, ];
+	"A(int*, ulong)(1,0)" -> "C(int*, ulong)(1,2)" [tailport=o0, headport=i0, ];
+	"B_c(int*, ulong)(2,1)" -> "C(int*, ulong)(1,2)" [tailport=o0, headport=i1, ];
+}

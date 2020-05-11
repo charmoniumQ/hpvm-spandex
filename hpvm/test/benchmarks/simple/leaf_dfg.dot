@@ -1,0 +1,19 @@
+digraph structs {
+	node [shape=record];
+	"nop(ulong)(1,1)" [label="{<i0>i0}|nop(ulong)(1,1)|{<o0>o0}"];
+	"sqr_sclr(int*, ulong, int*, ulong)(2,1)" [label="{<i0>i0|<i1>i1|<i2>i2|<i3>i3}|sqr_sclr(int*, ulong, int*, ulong)(2,1)|{<o0>o0}"];
+	"dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,0)" [label="{}|dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,0)|{<o0>o0|<o1>o1|<o2>o2|<o3>o3|<o4>o4|<o5>o5}"];
+	"dbl_sclr(int*, ulong, int*, ulong)(2,1)" [label="{<i0>i0|<i1>i1|<i2>i2|<i3>i3}|dbl_sclr(int*, ulong, int*, ulong)(2,1)|{<o0>o0}"];
+	"dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,4)" [label="{<i0>i0}|dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,4)|{}"];
+
+	"dbl_sclr(int*, ulong, int*, ulong)(2,1)" -> "dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,4)" [tailport=o0, headport=i0, ];
+	"dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,0)" -> "dbl_sclr(int*, ulong, int*, ulong)(2,1)" [tailport=o4, headport=i2, ];
+	"sqr_sclr(int*, ulong, int*, ulong)(2,1)" -> "dbl_sclr(int*, ulong, int*, ulong)(2,1)" [tailport=o0, headport=i1, ];
+	"dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,0)" -> "sqr_sclr(int*, ulong, int*, ulong)(2,1)" [tailport=o0, headport=i0, ];
+	"dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,0)" -> "dbl_sclr(int*, ulong, int*, ulong)(2,1)" [tailport=o5, headport=i3, ];
+	"dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,0)" -> "nop(ulong)(1,1)" [tailport=o1, headport=i0, ];
+	"nop(ulong)(1,1)" -> "sqr_sclr(int*, ulong, int*, ulong)(2,1)" [tailport=o0, headport=i1, ];
+	"dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,0)" -> "sqr_sclr(int*, ulong, int*, ulong)(2,1)" [tailport=o2, headport=i2, ];
+	"dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,0)" -> "dbl_sclr(int*, ulong, int*, ulong)(2,1)" [tailport=o2, headport=i0, ];
+	"dbl_sqr_vect(int*, ulong, int*, ulong, int*, ulong, ulong)(1,0)" -> "sqr_sclr(int*, ulong, int*, ulong)(2,1)" [tailport=o3, headport=i3, ];
+}

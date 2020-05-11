@@ -1,7 +1,0 @@
-digraph structs {
-	node [shape=record];
-	"sqr_vect(int*, ulong, int*, ulong)(2,0)" [label="{}|sqr_vect(int*, ulong, int*, ulong)(2,0)|{<o0>o0|<o1>o1|<o2>o2}"];
-	"dbl_vect(int*, ulong, int*, ulong)(2,0)" [label="{<i0>i0}|dbl_vect(int*, ulong, int*, ulong)(2,0)|{}"];
-
-	"sqr_vect(int*, ulong, int*, ulong)(2,0)" -> "dbl_vect(int*, ulong, int*, ulong)(2,0)" [headport=i0, tailport=o2, ];
-}

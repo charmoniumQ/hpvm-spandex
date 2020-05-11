@@ -12,21 +12,10 @@ struct __attribute__((__packed__)) InStruct {
 	OutStruct outStr;
 };
 
-void B_c(int* tmp, size_t tmpSize) {
+void B(int* tmp, size_t tmpSize) {
 	__hpvm__hint(hpvm::CPU_TARGET);
 	__hpvm__attributes(0, 1, tmp);
 	__hpvm__return(1, tmpSize);
-}
-
-void B(int* tmp, size_t tmpSize) {
-	__hpvm__hint(hpvm::CPU_TARGET);
-	__hpvm__attributes(1, tmp, 1, tmp);
-
-	void* B_n = __hpvm__createNodeND(0, B_c);
-
-	__hpvm__bindIn(B_n, 0, 0, HPVM_NONSTREAMING);
-	__hpvm__bindIn(B_n, 1, 1, HPVM_NONSTREAMING);
-	__hpvm__bindOut(B_n, 0, 0, HPVM_NONSTREAMING);
 }
 
 void C(int* tmp, size_t tmpSize) {

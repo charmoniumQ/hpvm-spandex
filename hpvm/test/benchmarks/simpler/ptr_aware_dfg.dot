@@ -1,7 +1,0 @@
-digraph structs {
-	node [shape=record];
-	"B(int*)(1,1)" [label="{}|B(int*)(1,1)|{<o0>o0}"];
-	"C(int*)(1,2)" [label="{<i0>i0}|C(int*)(1,2)|{}"];
-
-	"B(int*)(1,1)" -> "C(int*)(1,2)" [headport=i0, tailport=o0, ];
-}

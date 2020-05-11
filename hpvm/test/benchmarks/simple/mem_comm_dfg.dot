@@ -1,0 +1,7 @@
+digraph structs {
+	node [shape=record];
+	"dbl_sclr(int*, ulong, int*, ulong)(2,1)" [label="{<i0>i0}|dbl_sclr(int*, ulong, int*, ulong)(2,1)|{}"];
+	"sqr_sclr(int*, ulong, int*, ulong)(2,1)" [label="{}|sqr_sclr(int*, ulong, int*, ulong)(2,1)|{<o0>o0|<o1>o1|<o2>o2}"];
+
+	"sqr_sclr(int*, ulong, int*, ulong)(2,1)" -> "dbl_sclr(int*, ulong, int*, ulong)(2,1)" [tailport=o2, headport=i0, ];
+}
