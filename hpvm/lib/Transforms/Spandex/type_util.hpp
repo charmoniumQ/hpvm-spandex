@@ -21,7 +21,8 @@ std::string demangle(const std::string &input) {
   char *output =
       abi::__cxa_demangle(real_input.c_str(), nullptr, nullptr, &status);
   if (status == 0) {
-    std::string real_output = std::regex_replace(output, std::regex("\\(.*\\)"), "");
+    std::string real_output =
+        std::regex_replace(output, std::regex("\\(.*\\)"), "");
     return real_output;
   } else {
     // dbgs() << "abi::__cxa_demangle returned " << status << " on " <<
@@ -55,7 +56,7 @@ namespace llvm {
 llvm::raw_ostream &operator<<(llvm::raw_ostream &stream,
                               const llvm::DFNode &N) {
   return stream << demangle(N.getFuncPointer()->getName().str())
-				<< (N.isEntryNode() ? ".entry" : N.isExitNode() ? ".exit" : "");
+                << (N.isEntryNode() ? ".entry" : N.isExitNode() ? ".exit" : "");
 }
 llvm::raw_ostream &operator<<(llvm::raw_ostream &stream,
                               llvm::DFNode const *N) {

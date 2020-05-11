@@ -68,12 +68,12 @@ public:
         // 	auto consumer = producer_consumer.second;
         // }
       }
-	  LLVM_DEBUG(dbgs() << "Spandex pass done\n");
+      LLVM_DEBUG(dbgs() << "Spandex pass done\n");
       return true;
 
     } else {
       // No DFG. Nothing for us to do;
-	  LLVM_DEBUG(dbgs() << "Spandex pass done\n");
+      LLVM_DEBUG(dbgs() << "Spandex pass done\n");
       return false;
     }
   }

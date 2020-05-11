@@ -31,46 +31,51 @@ raw_ostream &dump_graphviz_ports(raw_ostream &os, const digraph<Port> &dfg,
        << "\"" << *node << "\" "
        << "["
        << "label=\"{";
-	Function* fn = node->getFuncPointer();
-	StructType *ST = node->getOutputType();
-	if (node->isExitNode()) {
-		unsigned i = 0;
-		for (auto elem_it = ST->element_begin(); elem_it != ST->element_end(); ++elem_it, ++i) {
-			if (i != 0) {
-				os << "|";
-			}
-			os << "<i" << i << ">" << **elem_it;
-		}
-	} else {
-		unsigned i = 0;
-		for (auto arg_it = fn->arg_begin(); arg_it != fn->arg_end(); ++arg_it, ++i) {
-			if (i != 0) {
-				os << "|";
-			}
-			os << "<i" << i << ">" << *arg_it->getType() << " " << arg_it->getName();
-		}
-	}
+    Function *fn = node->getFuncPointer();
+    StructType *ST = node->getOutputType();
+    if (node->isExitNode()) {
+      unsigned i = 0;
+      for (auto elem_it = ST->element_begin(); elem_it != ST->element_end();
+           ++elem_it, ++i) {
+        if (i != 0) {
+          os << "|";
+        }
+        os << "<i" << i << ">" << **elem_it;
+      }
+    } else {
+      unsigned i = 0;
+      for (auto arg_it = fn->arg_begin(); arg_it != fn->arg_end();
+           ++arg_it, ++i) {
+        if (i != 0) {
+          os << "|";
+        }
+        os << "<i" << i << ">" << *arg_it->getType() << " "
+           << arg_it->getName();
+      }
+    }
     os << "}|";
     os << *node;
     if (!inps_only) {
       os << "|{";
-	  if (node->isEntryNode()) {
-		  unsigned i = 0;
-		  for (auto arg_it = fn->arg_begin(); arg_it != fn->arg_end(); ++arg_it, ++i) {
-			  if (i != 0) {
-				  os << "|";
-			  }
-			  os << "<o" << i << ">" << *arg_it->getType();
-		  }
-	  } else {
-		  unsigned i = 0;
-		  for (auto elem_it = ST->element_begin(); elem_it != ST->element_end(); ++elem_it, ++i) {
-			  if (i != 0) {
-				  os << "|";
-			  }
-			  os << "<o" << i << ">" << **elem_it;
-		  }
-	  }
+      if (node->isEntryNode()) {
+        unsigned i = 0;
+        for (auto arg_it = fn->arg_begin(); arg_it != fn->arg_end();
+             ++arg_it, ++i) {
+          if (i != 0) {
+            os << "|";
+          }
+          os << "<o" << i << ">" << *arg_it->getType();
+        }
+      } else {
+        unsigned i = 0;
+        for (auto elem_it = ST->element_begin(); elem_it != ST->element_end();
+             ++elem_it, ++i) {
+          if (i != 0) {
+            os << "|";
+          }
+          os << "<o" << i << ">" << **elem_it;
+        }
+      }
       os << "}";
     }
     os << "\"];\n";
@@ -106,7 +111,7 @@ raw_ostream &dump_graphviz_ports(raw_ostream &os, const digraph<Port> &dfg,
     std::error_code EC;                                                        \
     raw_fd_ostream stream{StringRef{#graph ".dot"}, EC};                       \
     assert(!EC);                                                               \
-    dump_graphviz_ports(stream, graph, true);							\
+    dump_graphviz_ports(stream, graph, true);                                  \
   }
 
 class get_dfg_helper : public DFNodeVisitor {
@@ -163,13 +168,15 @@ digraph<Port> get_mem_comm_dfg(const digraph<Port> &dfg,
     if (dsts.size() > 1 && dsts.cbegin()->get_type()->isPointerTy()) {
       for (const Port &dst1 : dsts) {
         for (const Port &dst2 : dsts) {
-          if (true &&
-              dst1.N->getFuncPointer()->hasAttribute(dst1.pos + 1,
-                                                     Attribute::Out) &&
-              dst2.N->getFuncPointer()->hasAttribute(dst2.pos + 1,
-                                                     Attribute::In) &&
-              is_descendant(coarse_dfg, dst1.N, dst2.N)) {
-            result[dst1].insert(dst2);
+          if (dst1 != dst2 && dst1.N != dst2.N) {
+            if (true &&
+                dst1.N->getFuncPointer()->hasAttribute(dst1.pos + 1,
+                                                       Attribute::Out) &&
+                dst2.N->getFuncPointer()->hasAttribute(dst2.pos + 1,
+                                                       Attribute::In) &&
+                is_descendant(coarse_dfg, dst1.N, dst2.N)) {
+              result[dst1].insert(dst2);
+            }
           }
         }
       }
