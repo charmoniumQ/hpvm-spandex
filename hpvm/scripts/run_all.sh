@@ -1,16 +1,45 @@
-#!/bin/sh
+#!/bin/bash
 set -e -x
 cd "$(dirname "${0}")/.."
+proj_root="${PWD}"
+TIMEFORMAT="%R"
 
-dirs="simple simpler hpvm-cava pipeline"
+test_root=test/benchmarks
+test_names="rw sparse_rw ed cava"
 
-cd test/benchmarks
-for dir in ${dirs}
+# for test_name in ${test_names}
+# do
+# 	[ -d "${test_root}/${test_name}" ]
+# 	make clean -C "${test_root}/${test_name}"
+# 	TIMEFORMAT="make ${test_name} %R"
+# 	time make TARGET=seq -C "${test_root}/${test_name}" &
+# done
+# wait
+
+# for test_name in ${test_names}
+# do
+# 	cd "${test_root}/${test_name}"
+# 	TIMEFORMAT="run ${test_name} %R"
+# 	time ./exe-seq > output.out || true &
+# 	cd "${proj_root}"
+# done
+# wait
+
+for test_name in ${test_names}
 do
-	cd "${dir}"
-	make clean
-	make
-	dot -Tpng -O *.dot
-	rm *-seq
-	cd ..
+	TIMEFORMAT="process ${test_name} %R"
+	time pypy "${proj_root}/scripts/data_processing.py" \
+		 --name "${test_name}" \
+		 < "${test_root}/${test_name}/output.out" \
+		 > "${test_root}/${test_name}/results.csv" \
+		&
 done
+wait
+
+echo "program,mode,core,store,load,traffic" > results.csv
+for test_name in ${test_names}
+do
+	cat "${test_root}/${test_name}/results.csv" >> "${proj_root}/results.csv"
+done
+
+cat "${proj_root}/results.csv"
