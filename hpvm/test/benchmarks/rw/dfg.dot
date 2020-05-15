@@ -1,0 +1,33 @@
+digraph structs {
+	node [shape=record];
+	"sqr_vect.exit" [label="{<i0>i64}|sqr_vect.exit|{<o0>i64}"];
+	"sqr_sclr" [label="{<i0>%union.data* in|<i1>i64 inSize|<i2>%union.data* out|<i3>i64 outSize}|sqr_sclr|{<o0>i64}"];
+	"dbl_sclr" [label="{<i0>%union.data* in|<i1>i64 inSize|<i2>%union.data* out|<i3>i64 outSize}|dbl_sclr|{<o0>i64}"];
+	"dbl_vect.entry" [label="{<i0>%union.data* in|<i1>i64 inSize|<i2>%union.data* out|<i3>i64 outSize|<i4>i64 length}|dbl_vect.entry|{<o0>%union.data*|<o1>i64|<o2>%union.data*|<o3>i64|<o4>i64}"];
+	"sqr_vect.entry" [label="{<i0>%union.data* in|<i1>i64 inSize|<i2>%union.data* out|<i3>i64 outSize|<i4>i64 length}|sqr_vect.entry|{<o0>%union.data*|<o1>i64|<o2>%union.data*|<o3>i64|<o4>i64}"];
+	"dbl_sqr_vect.entry" [label="{<i0>%union.data* in|<i1>i64 inSize|<i2>%union.data* tmp|<i3>i64 tmpSize|<i4>%union.data* out|<i5>i64 outSize|<i6>i64 length}|dbl_sqr_vect.entry|{<o0>%union.data*|<o1>i64|<o2>%union.data*|<o3>i64|<o4>%union.data*|<o5>i64|<o6>i64}"];
+	"dbl_vect.exit" [label="{<i0>i64}|dbl_vect.exit|{<o0>i64}"];
+	"dbl_sqr_vect.exit" [label="{<i0>i64}|dbl_sqr_vect.exit|{<o0>i64}"];
+
+	"dbl_vect.entry" -> "dbl_sclr" [tailport=o3, headport=i3, ];
+	"dbl_vect.entry" -> "dbl_sclr" [tailport=o2, headport=i2, ];
+	"dbl_sqr_vect.entry" -> "dbl_vect.entry" [tailport=o4, headport=i2, ];
+	"dbl_sqr_vect.entry" -> "dbl_vect.entry" [tailport=o6, headport=i4, ];
+	"dbl_sqr_vect.entry" -> "sqr_vect.entry" [tailport=o6, headport=i4, ];
+	"dbl_vect.exit" -> "dbl_sqr_vect.exit" [tailport=o0, headport=i0, ];
+	"dbl_sclr" -> "dbl_vect.exit" [tailport=o0, headport=i0, ];
+	"dbl_sqr_vect.entry" -> "sqr_vect.entry" [tailport=o3, headport=i3, ];
+	"sqr_vect.entry" -> "sqr_sclr" [tailport=o3, headport=i3, ];
+	"dbl_sqr_vect.entry" -> "dbl_vect.entry" [tailport=o2, headport=i0, ];
+	"dbl_sqr_vect.entry" -> "sqr_vect.entry" [tailport=o2, headport=i2, ];
+	"sqr_vect.entry" -> "sqr_sclr" [tailport=o2, headport=i2, ];
+	"sqr_vect.entry" -> "sqr_sclr" [tailport=o1, headport=i1, ];
+	"dbl_sqr_vect.entry" -> "sqr_vect.entry" [tailport=o0, headport=i0, ];
+	"sqr_vect.entry" -> "sqr_sclr" [tailport=o0, headport=i0, ];
+	"dbl_sqr_vect.entry" -> "dbl_vect.entry" [tailport=o5, headport=i3, ];
+	"dbl_sqr_vect.entry" -> "sqr_vect.entry" [tailport=o1, headport=i1, ];
+	"sqr_vect.exit" -> "dbl_vect.entry" [tailport=o0, headport=i1, ];
+	"sqr_sclr" -> "sqr_vect.exit" [tailport=o0, headport=i0, ];
+	"dbl_vect.entry" -> "dbl_sclr" [tailport=o0, headport=i0, ];
+	"dbl_vect.entry" -> "dbl_sclr" [tailport=o1, headport=i1, ];
+}

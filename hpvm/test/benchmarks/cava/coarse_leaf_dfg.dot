@@ -1,0 +1,24 @@
+strict digraph {
+	"demosaic_fxp" ;
+	"scale_fxp" ;
+	"gamut_map_fxp" ;
+	"transform_fxp" ;
+	"tone_map_fxp" ;
+	"descale_fxp" ;
+	"CamPipeRoot.entry" ;
+	"denoise_fxp" ;
+
+	"transform_fxp" -> "gamut_map_fxp" ;
+	"gamut_map_fxp" -> "tone_map_fxp" ;
+	"tone_map_fxp" -> "descale_fxp" ;
+	"CamPipeRoot.entry" -> "descale_fxp" ;
+	"CamPipeRoot.entry" -> "gamut_map_fxp" ;
+	"CamPipeRoot.entry" -> "transform_fxp" ;
+	"CamPipeRoot.entry" -> "tone_map_fxp" ;
+	"CamPipeRoot.entry" -> "denoise_fxp" ;
+	"CamPipeRoot.entry" -> "scale_fxp" ;
+	"CamPipeRoot.entry" -> "demosaic_fxp" ;
+	"demosaic_fxp" -> "denoise_fxp" ;
+	"scale_fxp" -> "demosaic_fxp" ;
+	"denoise_fxp" -> "transform_fxp" ;
+}

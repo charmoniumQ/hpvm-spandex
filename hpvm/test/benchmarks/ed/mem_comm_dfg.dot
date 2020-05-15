@@ -1,0 +1,17 @@
+digraph structs {
+	node [shape=record];
+	"computeMaxGradientLeaf" [label="{<i0>float* G|<i1>i64 bytesG|<i2>float* maxG|<i3>i64 bytesMaxG|<i4>i64 m|<i5>i64 n}|computeMaxGradientLeaf"];
+	"computeGradient" [label="{<i0>float* Is|<i1>i64 bytesIs|<i2>float* Sx|<i3>i64 bytesSx|<i4>float* Sy|<i5>i64 bytesSy|<i6>float* G|<i7>i64 bytesG|<i8>i64 m|<i9>i64 n}|computeGradient"];
+	"rejectZeroCrossings" [label="{<i0>float* S|<i1>i64 bytesS|<i2>float* G|<i3>i64 bytesG|<i4>float* maxG|<i5>i64 bytesMaxG|<i6>float* E|<i7>i64 bytesE|<i8>i64 m|<i9>i64 n}|rejectZeroCrossings"];
+	"laplacianEstimate" [label="{<i0>float* Is|<i1>i64 bytesIs|<i2>float* B|<i3>i64 bytesB|<i4>float* L|<i5>i64 bytesL|<i6>i64 m|<i7>i64 n}|laplacianEstimate"];
+	"gaussianSmoothing" [label="{<i0>float* I|<i1>i64 bytesI|<i2>float* Gs|<i3>i64 bytesGs|<i4>float* Is|<i5>i64 bytesIs|<i6>i64 m|<i7>i64 n}|gaussianSmoothing"];
+	"computeZeroCrossings" [label="{<i0>float* L|<i1>i64 bytesL|<i2>float* B|<i3>i64 bytesB|<i4>float* S|<i5>i64 bytesS|<i6>i64 m|<i7>i64 n}|computeZeroCrossings"];
+
+	"laplacianEstimate" -> "computeZeroCrossings" [tailport=i4, headport=i0, ];
+	"computeZeroCrossings" -> "rejectZeroCrossings" [tailport=i4, headport=i0, ];
+	"gaussianSmoothing" -> "computeGradient" [tailport=i4, headport=i0, ];
+	"gaussianSmoothing" -> "laplacianEstimate" [tailport=i4, headport=i0, ];
+	"computeMaxGradientLeaf" -> "rejectZeroCrossings" [tailport=i2, headport=i4, ];
+	"computeGradient" -> "rejectZeroCrossings" [tailport=i6, headport=i2, ];
+	"computeGradient" -> "computeMaxGradientLeaf" [tailport=i6, headport=i0, ];
+}

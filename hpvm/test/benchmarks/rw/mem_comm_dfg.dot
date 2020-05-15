@@ -1,0 +1,7 @@
+digraph structs {
+	node [shape=record];
+	"dbl_sclr" [label="{<i0>%union.data* in|<i1>i64 inSize|<i2>%union.data* out|<i3>i64 outSize}|dbl_sclr"];
+	"sqr_sclr" [label="{<i0>%union.data* in|<i1>i64 inSize|<i2>%union.data* out|<i3>i64 outSize}|sqr_sclr"];
+
+	"sqr_sclr" -> "dbl_sclr" [tailport=i2, headport=i0, ];
+}
