@@ -7,8 +7,11 @@ env \
 	mount_cwd=yes \
 	interactive=yes \
 	packages="git wget xz-utils cmake make g++ python ocl-icd-opencl-dev software-properties-common" \
-	command="${command:-./scripts/hpvm_build.sh}" \
+	command="/bin/bash" \
 	./scripts/docker.sh
+
+# command="${command:-./scripts/hpvm_build.sh}" \
+
 # sudo add-apt-repository ppa:pypy/ppa
 # sudo apt update
 # sudo apt install pypy pypy-dev libagg-dev libfreetype6-dev
