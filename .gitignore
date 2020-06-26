@@ -12,6 +12,3 @@ hpvm/llvm_patches/**/*.patch
 
 CMakeCache.txt
 CMakeFiles/
-exe-seq
-results.csv
-output.out
