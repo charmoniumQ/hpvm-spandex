@@ -130,10 +130,9 @@ def mode_MESI(tag, core, access, line_addr, cache_state, cache_states, costs):
         raise RuntimeError('fUnknown access {access}')
 
 modes = {
-    'Spandex prod. owned': mode_Spandex_producer_owned,
-    'Spandex cons. owned': mode_Spandex_consumer_owned,
-    'Spandex': mode_Spandex,
-    'MESI': mode_MESI,
+    (mode_name[5:], mode_fn)
+    for mode_name, mode_fn in sorted(globals().items())
+    if mode_name.startswith('mode_')
 }
 
 

@@ -20,7 +20,7 @@ test_names="rw sparse_rw ed cava"
 # do
 # 	cd "${test_root}/${test_name}"
 # 	TIMEFORMAT="run ${test_name} %R"
-# 	time ./exe-seq > output.out || true &
+# 	time ./exe-seq > output || true &
 # 	cd "${proj_root}"
 # done
 # wait
@@ -30,7 +30,7 @@ do
 	TIMEFORMAT="process ${test_name} %R"
 	time pypy "${proj_root}/scripts/data_processing.py" \
 		 --name "${test_name}" \
-		 < "${test_root}/${test_name}/output.out" \
+		 < "${test_root}/${test_name}/output" \
 		 > "${test_root}/${test_name}/results.csv" \
 		&
 done
