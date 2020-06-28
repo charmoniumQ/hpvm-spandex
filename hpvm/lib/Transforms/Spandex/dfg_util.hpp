@@ -119,7 +119,7 @@ private:
   digraph<Port> dfg;
 
 public:
-  const DFNode *normalize(const DFNode *orig, bool src) {
+  DFNode const *normalize(DFNode const *orig, bool src) {
     if (orig->getKind() == DFNode::InternalNode) {
       DFInternalNode *orig2 = const_cast<DFInternalNode *>(
           reinterpret_cast<const DFInternalNode *>(orig));
@@ -130,7 +130,7 @@ public:
     }
   }
 
-  virtual void visit2(const DFNode *N) {
+  virtual void visit2(DFNode const *N) {
     for (auto edge = N->outdfedge_begin(); edge != N->outdfedge_end(); ++edge) {
       Port src{normalize((*edge)->getSourceDF(), true),
                (*edge)->getSourcePosition()};
@@ -144,7 +144,7 @@ public:
   virtual void visit(DFInternalNode *N) {
     visit2(reinterpret_cast<const DFNode *>(N));
     for (DFNode *child : *N->getChildGraph()) {
-      child->applyDFNodeVisitor(*this);
+      const_cast<DFNode *>(child)->applyDFNodeVisitor(*this);
     }
   }
   virtual void visit(DFLeafNode *N) {
@@ -164,7 +164,7 @@ digraph<Port> get_dfg(const DFInternalNode *N) {
 digraph<Port> get_mem_comm_dfg(const digraph<Port> &dfg,
                                const digraph<DFNode const *> &coarse_dfg) {
   digraph<Port> result;
-  for_each_adj_list<Port>(dfg, [&](const Port &src, auto dsts) {
+  for_each_adj_list<Port>(dfg, [&](const Port &src, const adj_list<Port> dsts) {
     if (dsts.size() > 1 && dsts.cbegin()->get_type()->isPointerTy()) {
       for (const Port &dst1 : dsts) {
         for (const Port &dst2 : dsts) {
@@ -174,7 +174,7 @@ digraph<Port> get_mem_comm_dfg(const digraph<Port> &dfg,
                                                        Attribute::Out) &&
                 dst2.N->getFuncPointer()->hasAttribute(dst2.pos + 1,
                                                        Attribute::In) &&
-                is_descendant(coarse_dfg, dst1.N, dst2.N)) {
+                is_descendant<DFNode const *>(coarse_dfg, dst1.N, dst2.N)) {
               result[dst1].insert(dst2);
             }
           }

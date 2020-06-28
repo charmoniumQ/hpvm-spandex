@@ -13,6 +13,7 @@ std::unordered_map<Node, std::unordered_set<Node>>
 #include <unordered_set>
 #include <deque>
 #include <algorithm>
+#include <type_traits>
 #include <functional>
 #include "type_util.hpp"
 
@@ -24,7 +25,7 @@ using digraph = std::unordered_map<Node, adj_list<Node>>;
 template <typename Node>
 void for_each_adj_list(
     const digraph<Node> &digraph_,
-    std::function<void(const Node &, const std::unordered_set<Node> &)> fn) {
+    std::function<void(const Node &, const adj_list<Node> &)> fn) {
   for (const auto &node_successors : digraph_) {
     const Node &src = node_successors.first;
     const std::unordered_set<Node> &dsts = node_successors.second;
@@ -46,7 +47,7 @@ void for_each_adj(const digraph<Node> &digraph_,
 template <typename Node>
 std::unordered_set<Node> get_nodes(const digraph<Node> &digraph_) {
   std::unordered_set<Node> nodes;
-  for_each_adj_list<Node>(digraph_, [&](const Node &src, auto dsts) {
+  for_each_adj_list<Node>(digraph_, [&](const Node &src, adj_list<Node> dsts) {
     nodes.insert(src);
     for (const Node &dst : dsts) {
       nodes.insert(dst);
@@ -123,7 +124,7 @@ private:
  */
 template <typename Node>
 std::vector<Node> bfs(const digraph<Node> &digraph_, Node src) {
-  std::vector<Node> ret;
+	std::vector<Node> ret;
   for (bfs_iterator<Node> it{digraph_, src}; !it.empty(); ++it) {
     // LLVM_DEBUG(dbgs() << src << " -> ... -> " << *it << "\n");
     ret.push_back(*it);
@@ -133,9 +134,9 @@ std::vector<Node> bfs(const digraph<Node> &digraph_, Node src) {
 
 template <typename Node>
 bool is_descendant(const digraph<Node> &digraph_, Node n1, Node n2) {
-  auto descendants = bfs<Node>(digraph_, n1);
-  return std::find(std::cbegin(descendants), std::cend(descendants), n2) !=
-         std::cend(descendants);
+	auto descendants = bfs<Node>(digraph_, n1);
+  return std::find(descendants.cbegin(), descendants.cend(), n2) !=
+	  descendants.cend();
 }
 
 template <typename Node1, typename Node2>
@@ -143,7 +144,7 @@ digraph<Node2> map_graph(const digraph<Node1> &inp,
                          std::function<Node2(const Node1 &)> fn) {
   digraph<Node2> out;
 
-  for_each_adj_list<Node1>(inp, [&](const Node1 &src1, auto dst1s) {
+  for_each_adj_list<Node1>(inp, [&](const Node1 &src1, const adj_list<Node1>& dst1s) {
     Node2 src2 = fn(src1);
     for (const Node1 &dst1 : dst1s) {
       Node2 dst2 = fn(dst1);
@@ -222,8 +223,8 @@ void delete_node(digraph<Node> &graph, digraph<Node> &inverse_graph,
 
 template <typename Node>
 void delete_nodes(digraph<Node> &graph, std::function<bool(const Node &)> fn) {
-  digraph<Node> inverse_graph = invert(graph);
-  for (const Node &node : get_nodes(graph)) {
+	digraph<Node> inverse_graph = invert<Node>(graph);
+	for (const Node &node : get_nodes<Node>(graph)) {
     if (fn(node)) {
       delete_node(graph, inverse_graph, node);
     }
@@ -237,7 +238,7 @@ llvm::raw_ostream &dump_graphviz(llvm::raw_ostream &os,
 
   std::unordered_set<DFNode const *> nodes;
 
-  for (const auto &node : get_nodes(digraph_)) {
+  for (const Node &node : get_nodes(digraph_)) {
     os << "\t"
        << "\"" << node << "\" "
        << ";\n";
@@ -262,7 +263,7 @@ llvm::raw_ostream &dump_graphviz(llvm::raw_ostream &os,
     std::error_code EC;                                                        \
     raw_fd_ostream stream{StringRef{#graph ".dot"}, EC};                       \
     assert(!EC);                                                               \
-    dump_graphviz(stream, graph);                                              \
+    dump_graphviz<decltype(graph)::key_type>(stream, graph);	\
   }
 
 #endif
