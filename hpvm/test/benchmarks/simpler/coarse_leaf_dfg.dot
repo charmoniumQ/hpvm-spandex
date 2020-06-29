@@ -1,11 +1,11 @@
 strict digraph {
-	"A.entry" ;
 	"B_c" ;
-	"C" ;
 	"A.exit" ;
+	"C" ;
+	"A.entry" ;
 
-	"C" -> "A.exit" ;
-	"B_c" -> "C" ;
 	"A.entry" -> "C" ;
 	"A.entry" -> "B_c" ;
+	"B_c" -> "C" ;
+	"C" -> "A.exit" ;
 }

@@ -1,13 +1,13 @@
 digraph structs {
 	node [shape=record];
-	"B_c" [label="{<i0>i32* tmp|<i1>i64 tmpSize}|B_c|{<o0>i64}"];
 	"A.entry" [label="{<i0>i32* tmp|<i1>i64 tmpSize}|A.entry|{<o0>i32*|<o1>i64}"];
-	"C" [label="{<i0>i32* tmp|<i1>i64 tmpSize}|C|{<o0>i64}"];
+	"B_c" [label="{<i0>i32* tmp|<i1>i64 tmpSize}|B_c|{<o0>i64}"];
 	"A.exit" [label="{<i0>i64}|A.exit|{<o0>i64}"];
+	"C" [label="{<i0>i32* tmp|<i1>i64 tmpSize}|C|{<o0>i64}"];
 
 	"C" -> "A.exit" [tailport=o0, headport=i0, ];
+	"B_c" -> "C" [tailport=o0, headport=i1, ];
 	"A.entry" -> "B_c" [tailport=o1, headport=i1, ];
 	"A.entry" -> "B_c" [tailport=o0, headport=i0, ];
 	"A.entry" -> "C" [tailport=o0, headport=i0, ];
-	"B_c" -> "C" [tailport=o0, headport=i1, ];
 }
