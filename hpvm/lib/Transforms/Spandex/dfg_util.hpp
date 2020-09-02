@@ -1,38 +1,36 @@
-#ifndef DFG_UTIL_HPP
-#define DFG_UTIL_HPP
+#pragma once
+#include "llvm/Support/Debug.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/Support/raw_ostream.h"
+#include "SupportHPVM/DFGraph.h"
+#include "graph_util.hpp"
+#include "llvm_util.hpp"
+#include "hpvm_util.hpp"
 
 /*
 Utilities specific to HPVM DFGs.
 */
 
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
-#include "SupportHPVM/DFGraph.h"
-#include "type_util.hpp"
-#include "graph_util.hpp"
-
-using namespace llvm;
-
-raw_ostream &dump_graphviz_ports(raw_ostream &os, const digraph<Port> &dfg,
-                                 bool inps_only = false) {
+llvm::raw_ostream &dump_graphviz_ports(llvm::raw_ostream &os, const digraph<Port> &dfg,
+									   bool inps_only = false) {
   os << "digraph structs {\n";
 
   os << "\tnode [shape=record];\n";
 
-  std::unordered_set<DFNode const *> dfnodes;
+  std::unordered_set<llvm::DFNode const *> dfnodes;
   for_each_adj<Port>(dfg, [&](const Port &src, const Port &dst) {
     // omit port info
     dfnodes.insert(src.N);
     dfnodes.insert(dst.N);
   });
 
-  for (DFNode const *node : dfnodes) {
+  for (llvm::DFNode const *node : dfnodes) {
     os << "\t"
        << "\"" << *node << "\" "
        << "["
        << "label=\"{";
-    Function *fn = node->getFuncPointer();
-    StructType *ST = node->getOutputType();
+    llvm::Function *fn = node->getFuncPointer();
+    llvm::StructType *ST = node->getOutputType();
     if (node->isExitNode()) {
       unsigned i = 0;
       for (auto elem_it = ST->element_begin(); elem_it != ST->element_end();
@@ -101,7 +99,7 @@ raw_ostream &dump_graphviz_ports(raw_ostream &os, const digraph<Port> &dfg,
 #define DUMP_GRAPHVIZ_PORTS(graph)                                             \
   {                                                                            \
     std::error_code EC;                                                        \
-    raw_fd_ostream stream{StringRef{#graph ".dot"}, EC};                       \
+    llvm::raw_fd_ostream stream{StringRef{#graph ".dot"}, EC};                       \
     assert(!EC);                                                               \
     dump_graphviz_ports(stream, graph);                                        \
   }
@@ -109,7 +107,7 @@ raw_ostream &dump_graphviz_ports(raw_ostream &os, const digraph<Port> &dfg,
 #define DUMP_GRAPHVIZ_PORT_PTRS(graph)                                         \
   {                                                                            \
     std::error_code EC;                                                        \
-    raw_fd_ostream stream{StringRef{#graph ".dot"}, EC};                       \
+    llvm::raw_fd_ostream stream{StringRef{#graph ".dot"}, EC};                       \
     assert(!EC);                                                               \
     dump_graphviz_ports(stream, graph, true);                                  \
   }
@@ -119,10 +117,10 @@ private:
   digraph<Port> dfg;
 
 public:
-  DFNode const *normalize(DFNode const *orig, bool src) {
+	llvm::DFNode const *normalize(llvm::DFNode const *orig, bool src) {
     if (orig->getKind() == DFNode::InternalNode) {
-      DFInternalNode *orig2 = const_cast<DFInternalNode *>(
-          reinterpret_cast<const DFInternalNode *>(orig));
+      DFInternalNode *orig2 = const_cast<llvm::DFInternalNode *>(
+          reinterpret_cast<const llvm::DFInternalNode *>(orig));
       DFGraph *g = orig2->getChildGraph();
       return src ? g->getExit() : g->getEntry();
     } else {
@@ -130,7 +128,7 @@ public:
     }
   }
 
-  virtual void visit2(DFNode const *N) {
+  virtual void visit2(llvm::DFNode const *N) {
     for (auto edge = N->outdfedge_begin(); edge != N->outdfedge_end(); ++edge) {
       Port src{normalize((*edge)->getSourceDF(), true),
                (*edge)->getSourcePosition()};
@@ -141,28 +139,28 @@ public:
     }
   }
 
-  virtual void visit(DFInternalNode *N) {
-    visit2(reinterpret_cast<const DFNode *>(N));
-    for (DFNode *child : *N->getChildGraph()) {
-      const_cast<DFNode *>(child)->applyDFNodeVisitor(*this);
+  virtual void visit(llvm::DFInternalNode *N) {
+    visit2(reinterpret_cast<const llvm::DFNode *>(N));
+    for (llvm::DFNode *child : *N->getChildGraph()) {
+      const_cast<llvm::DFNode *>(child)->applyDFNodeVisitor(*this);
     }
   }
-  virtual void visit(DFLeafNode *N) {
-    visit2(reinterpret_cast<const DFNode *>(N));
+  virtual void visit(llvm::DFLeafNode *N) {
+    visit2(reinterpret_cast<const llvm::DFNode *>(N));
   }
   digraph<Port> get_dfg() { return dfg; }
 };
 
-digraph<Port> get_dfg(const DFInternalNode *N) {
+digraph<Port> get_dfg(const llvm::DFInternalNode *N) {
   get_dfg_helper gdh;
   // I know this visitor does not modify the graph a priori
   // but the graph visitor API (not owned by me) is marked as non-const
-  const_cast<DFInternalNode *>(N)->applyDFNodeVisitor(gdh);
+  const_cast<llvm::DFInternalNode *>(N)->applyDFNodeVisitor(gdh);
   return gdh.get_dfg();
 }
 
 digraph<Port> get_mem_comm_dfg(const digraph<Port> &dfg,
-                               const digraph<DFNode const *> &coarse_dfg) {
+                               const digraph<llvm::DFNode const *> &coarse_dfg) {
   digraph<Port> result;
   for_each_adj_list<Port>(dfg, [&](const Port &src, const adj_list<Port> dsts) {
     if (dsts.size() > 1 && dsts.cbegin()->get_type()->isPointerTy()) {
@@ -171,10 +169,10 @@ digraph<Port> get_mem_comm_dfg(const digraph<Port> &dfg,
           if (dst1 != dst2 && dst1.N != dst2.N) {
             if (true &&
                 dst1.N->getFuncPointer()->hasAttribute(dst1.pos + 1,
-                                                       Attribute::Out) &&
+                                                       llvm::Attribute::Out) &&
                 dst2.N->getFuncPointer()->hasAttribute(dst2.pos + 1,
-                                                       Attribute::In) &&
-                is_descendant<DFNode const *>(coarse_dfg, dst1.N, dst2.N)) {
+                                                       llvm::Attribute::In) &&
+                is_descendant<llvm::DFNode const *>(coarse_dfg, dst1.N, dst2.N)) {
               result[dst1].insert(dst2);
             }
           }
@@ -184,5 +182,3 @@ digraph<Port> get_mem_comm_dfg(const digraph<Port> &dfg,
   });
   return result;
 }
-
-#endif

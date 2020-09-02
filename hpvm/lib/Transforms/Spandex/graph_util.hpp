@@ -1,5 +1,10 @@
-#ifndef GRAPH_UTIL_HPP
-#define GRAPH_UTIL_HPP
+#pragma once
+#include <unordered_map>
+#include <unordered_set>
+#include <deque>
+#include <algorithm>
+#include <type_traits>
+#include <functional>
 
 /*
 Utilities for generic digraphs, described as
@@ -8,14 +13,6 @@ template <typename Node>
 std::unordered_map<Node, std::unordered_set<Node>>
 
 */
-
-#include <unordered_map>
-#include <unordered_set>
-#include <deque>
-#include <algorithm>
-#include <type_traits>
-#include <functional>
-#include "type_util.hpp"
 
 template <typename Node> using adj_list = std::unordered_set<Node>;
 
@@ -78,7 +75,7 @@ public:
   }
   Node *operator->() { return &cur; }
   bfs_iterator &operator++() {
-    // only owrks in acyclic graph
+    // only works in acyclic graph
     assert(!empty() && "Incremented a completed iterator");
     if (_digraph.count(cur) != 0) {
       for (const auto &next : _digraph.at(cur)) {
@@ -265,5 +262,3 @@ llvm::raw_ostream &dump_graphviz(llvm::raw_ostream &os,
     assert(!EC);                                                               \
     dump_graphviz<decltype(graph)::key_type>(stream, graph);	\
   }
-
-#endif

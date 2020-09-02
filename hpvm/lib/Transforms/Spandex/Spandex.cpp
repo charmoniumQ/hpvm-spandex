@@ -1,111 +1,28 @@
 /* Fast dry-run compile locally with
 
     clang-format -i lib/Transforms/Spandex/Spandex.cpp
-    clang++ -std=c++11 lib/Transforms/Spandex/Spandex.cpp -Iinclude
--Ibuild/include -Illvm_patches/include -Illvm/include
+    clang++ -std=c++11 lib/Transforms/Spandex/Spandex.cpp -Iinclude -Ibuild/include -Illvm_patches/include -Illvm/include
 
 Anticipate errors related to intrinsics not found. Compile for real with
 
     ./scripts/hpvm_build.sh
 */
 
-#include <numeric>
-
 // https://llvm.org/docs/ProgrammersManual.html#fine-grained-debug-info-with-debug-type-and-the-debug-only-option
+#include <numeric>
 #define DEBUG_TYPE "Spandex"
 #include "llvm/Support/Debug.h"
 #include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "BuildDFG/BuildDFG.h"
 #include "SupportHPVM/DFGraph.h"
 #include "Spandex/Spandex.h"
-#include "type_util.hpp"
 #include "graph_util.hpp"
 #include "dfg_util.hpp"
+#include "llvm_util.hpp"
 #include "enum.h"
 
 using namespace spandex;
-
-BETTER_ENUM(AccessKind, unsigned char, access, store, load)
-
-bool is_derived_from(const Value &Vsource, const Value &Vdest, bool verbose = false) {
-	if (verbose) {
-		LLVM_DEBUG(dbgs() << "is_derived_from: " << Vsource << " --?--> " << Vdest << "? ");
-	}
-  if (&Vsource == &Vdest) {
-	  if (verbose) {
-	  LLVM_DEBUG(dbgs() << "Yes.\n");
-	  }
-    return true;
-  } else {
-    const User *U;
-    if ((U = dyn_cast<User>(&Vdest))) {
-      for (auto Vdest2 = U->value_op_begin(); Vdest2 != U->value_op_end();
-           ++Vdest2) {
-		  if (verbose) {
-		  LLVM_DEBUG(dbgs() << "Through " << **Vdest2 << "?\n");
-		  }
-        if (is_derived_from(Vsource, **Vdest2)) {
-          return true;
-        }
-		if (verbose) {
-		LLVM_DEBUG(dbgs() << "is_derived_from: " << Vsource << " --?--> " << Vdest << "? ");
-		}
-      }
-    }
-		  LLVM_DEBUG(dbgs() << "No.");
-    return false;
-  }
-}
-
-bool is_access_to(const Instruction &I, const Value &Vptr, AccessKind AK, bool verbose = false) {
-  const LoadInst *LI = nullptr;
-  const StoreInst *SI = nullptr;
-  if (false) {
-  } else if ((AK == (+AccessKind::access) || AK == (+AccessKind::load )) &&
-             (LI = dyn_cast<LoadInst>(&I))) {
-    const Value &V = *LI->getPointerOperand();
-    if (is_derived_from(Vptr, V)) {
-      return true;
-    }
-  } else if ((AK == (+AccessKind::access) || AK == (+AccessKind::store)) &&
-             (SI = dyn_cast<StoreInst>(&I))) {
-    const Value &V = *SI->getPointerOperand();
-    if (is_derived_from(Vptr, V)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-unsigned count_accesses(const BasicBlock &BB, const Value &Vptr, AccessKind AK,
-                        ScalarEvolution &SE, const LoopInfo &LI, bool verbose = false) {
-  unsigned sum = 0;
-  for (auto I = BB.begin(); I != BB.end(); ++I) {
-	unsigned accesses = 0;
-    if (is_access_to(*I, Vptr, AK, verbose)) {
-	  accesses = 1;
-      const Loop *loop = LI.getLoopFor(&BB);
-      while (loop != nullptr) {
-        accesses *= SE.getSmallConstantTripCount(loop);
-        loop = loop->getParentLoop();
-      }
-	  if (verbose) {
-		  LLVM_DEBUG(dbgs() << "count_accesses: " << accesses << " x " << *I << "\n");
-	  }
-    }
-    sum += accesses;
-  }
-  return sum;
-}
-
-unsigned count_accesses(const Function &F, const Value &Vptr, AccessKind AK,
-                        ScalarEvolution &SE, const LoopInfo &LI, bool verbose = false) {
-  unsigned sum = 0;
-  for (auto BB = F.begin(); BB != F.end(); ++BB) {
-	  sum += count_accesses(*BB, Vptr, AK, SE, LI, verbose);
-  }
-  return sum;
-}
 
 BETTER_ENUM(SpandexRequestType, char, N, Odata, O, S, V, Vo, WT, WTo, WTfwd)
 
