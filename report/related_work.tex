@@ -1,0 +1,7 @@
+\section{Related Work}
+\label{related_work}
+
+Remote Store Programming \cite{remote_store_programming} exploits a similar data-movement optimization, but it requires manual programmer input. The goal of this work is to automate that analysis. While future versions of this compiler could target RSP, targeting Spandex gives us a superset of the optimizations available in RSP.
+
+Prior work on DeNovo cache coherence protocol does include a compiler. Still, it assumes programs are written in a language with annotated memory-effect regions (for each function, a set of memory locations which it could read and another set which it could write) \cite{DeNovo}. No popular programming language includes manual annotations; manual annotations are too tedious and error-prone to burden computer programmers. Despite the plethora of work \cite{effect_and_effect_inference_java,polymorphic_effect_systems,OO_effect_system} on memory-effect inference, no popular language tool-chain includes such an inference pass; they are expensive to perform on an imperative language with polymorphism. 
+Work on dynamic cache-coherence in Spandex \cite{dynamic_cache_coherence} presents a high-level algorithm, but it is too high-level for a compiler-developer to implement directly. 

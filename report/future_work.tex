@@ -1,0 +1,6 @@
+\section{Future Work}
+Future work could try to estimate the sparsity of stores compared to the sparsity of loads. Since we have identified the leaf nodes containing the producing and consuming logic, one can use the LLVM analysis tools \cite{LLVM} to ask how many times a static instruction will be run (trip count). Even if this only applied in cases where the code path is statically knowable, a lot of SGEM and image processing code has this property. Then, one could either assume memory accesses are uniform across the buffer or do even more detailed analysis to determine how many accesses are to unique lines in the buffer. Our experiments show there could be extreme benefits in being able to select cache optimization for each access pattern.
+
+We focused entirely on the data-movement between leaves, but future work might optimize the synchronization logic in the HPVM runtime as well. Furthermore, one might also want to look at more kinds of cache optimizations.
+
+Finally, when a simulator becomes available, future work should utilize a proper architectural simulation to produce actual runtime improvement estimates.

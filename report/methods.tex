@@ -1,0 +1,83 @@
+\section{Methods}
+\label{sec:methods}
+
+Unfortunately, there is only one existing simulator or Spandex protocol, and it is not possible to set up in such a short period of time. There are students working on a gem5 simulator, but that effort was not ready when we were like we had hoped. As such, the experiments in this report will depend on analytical models.
+
+We have annotated each benchmark so that it logs all loads and stores to the buffers I am considering a part of the producer/consumer relationship. Then, we wrote a program that simulates the cache states for those addresses. These are the assumptions our simulator makes:
+
+\begin{itemize}
+    \item If the coherence optimization supports coalescing and a store is to the same line as one of the previous \(N\) stores (where \(N\) is a parameter defined below), it gets coalesced.
+    \item The program is in steady-state (no cold-effects). We \textit{do} simulate cold-effects which would recur at the beginning of every epoch. 
+    \item The working-set fits in the L1 cache. No conflict or capacity misses.
+\end{itemize}
+
+The parameters we used are detailed in \cref{table:params}. The latency numbers come from a prior publication on dynamic cache coherence \cite{dynamic_cache_coherence} and the flit sizes come from the RTL implementation of Spandex, which in turn is dictated by ESP \cite{ESP}.
+
+\begin{table}[h]
+  \caption{Simulation parameters}
+  \label{table:params}
+  \begin{tabular}{cc}
+  \toprule
+  \textbf{Parameter} & \textbf{Value} \\
+  \midrule
+  Avg. hops from L1 to peer L1 & 1.0 hops \\
+  Avg. hops from L1 to L2 & 1.0 hops \\
+  Avg. hops from L1 to bus & 1.0 hops \\
+  Write coalescing buffer size & 32 entries \\
+  L1 hit & 1 cycle \\
+  Avg. latency of L1 to peer L1 and back & 60 cycles \\
+  Avg. latency of L1 to L2 to peer L1 and back & 80 cycles \\
+  Avg. latency of  L1 to bus to peer L1 and back & 70 cycles \\
+  Word size & 1 flit \\
+  Address size & 1 flit \\
+  Header size & 1 flit \\
+  Line size & 8 words \\
+  \bottomrule
+\end{tabular}
+\end{table}
+
+We annotated these three benchmarks:
+
+\begin{itemize}
+    \item \verb+rw+ a microbenchmark with 2 stages, where the producer writes to every byte in a buffer, and the consumer reads all of the writes.
+    \item \verb+sparse_rw+ like \verb+rw+, but producer and consumer only access the first word of every line. This is representative of a ``sparse'' data access pattern, which eliminates the effect of coalescing.
+    \item \verb+ed+ an edge-detection pipeline with 5 stages pipeline with 2 parallel paths. This example exhibits pipeline-parallelism and task-parallelism.
+    \item \verb+cava+ Harvard Camera image processing pipeline, with 7 stages. This is a good example of a realistic application.
+\end{itemize}
+
+We considered annotating parboil benchmarks, but they do not naturally exhibit pipelined parallelism, as they are more a test of data-parallelism, so it does not fit the producer/consumer model as well.
+
+The cost model we use is described in \cref{table:costs}. Note the last case (Spandex consumer-owned loads) are where write coalescing becomes relevant. All words written to a line can piggy-back off of the same packet.
+
+\begin{table*}[h]
+  \caption{Latency and network cost of each request in terms of the parameters above.}
+  \label{table:costs}
+  \begin{tabular}{cccccc}
+  \toprule
+  \textbf{Scenario} & \textbf{Request} & \textbf{State} & \textbf{State Change} & \textbf{Latency} & \textbf{Traffic Routed} \\
+  \midrule
+  MESI & store & S & \makecell[tc]{issuer to M \\ others to I} & L1-bus-peerL1-L1 &
+    \makecell[tc]{2 \(\times\) (L1 to L2 hops) \(\times\) (Inv: header + address) \\ + (L1 to L1 hops) \(\times\) (InvAck: header + address)} \\
+   & store & M & M & L1 hit & 0 \\
+   & load & I & all to S & L1-bus-peerL1-L1 &
+    \makecell[tc]{2 \(\times\) (L1 to Bus hops) \(\times\) (ReqS: header + address) \\ + (L1 to L1 hops) \(\times\) (RspSdata: header + address + line)} \\
+   & load & S & S & L1 hit & 0 \\
+\midrule
+  Spandex & store & S & \makecell[tc]{issuer to O \\ others to I} & L1-L2-peerL1-L1 &
+    \makecell[tc]{2 \(\times\) (L1 to L2 hops) \(\times\) (Inv: header + address) \\ + (L1 to L1 hops) \(\times\) (InvAck: header + address)} \\
+   & store & O & O & L1 hit & 0 \\
+   & load & I & all to S & L1-L2-peerL1-L1 &
+    \makecell[tc]{2 \(\times\) (L1 to L2 hops) \(\times\) (ReqS: header + address) \\ + (L1 to L1 hops) \(\times\) (RspSdata: header + address + line)} \\
+   & load & S & S & L1 hit & 0 \\
+\midrule
+  \makecell[tc]{Spandex \\ prod.-owned} & store & O & O & L1 hit & 0 \\
+   & load & I & V & L1-peerL1-L1 &
+  \makecell[tc]{(L1 to L1 hops) \(\times\) (ReqV: header + address) \\ + (L1 to L1 hops) \(\times\) (RspData: header + address + line)} \\
+   & load & V & V & L1 hit & 0 \\
+\midrule
+  \makecell[tc]{Spandex \\ cons.-owned} & store & I & I & L1-peerL1-L1 &
+  \makecell[tc]{(L1 to L1 hops) \(\times\) (ReqWTo: header + address + data) \\ + (L1 to L1 hops) \(\times\) (AckWT: header + address)} \\
+   & load & O & O & L1 hit & 0 \\
+  \bottomrule
+\end{tabular}
+\end{table*}
