@@ -12,102 +12,16 @@ Anticipate errors related to intrinsics not found. Compile for real with
 #include <numeric>
 #define DEBUG_TYPE "Spandex"
 #include "llvm/Support/Debug.h"
+#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "BuildDFG/BuildDFG.h"
 #include "SupportHPVM/DFGraph.h"
 #include "Spandex/Spandex.h"
-#include "graph_util.hpp"
-#include "dfg_util.hpp"
-#include "llvm_util.hpp"
-#include "enum.h"
+#include "spandex_util.hpp"
 
 using namespace spandex;
 
-BETTER_ENUM(SpandexRequestType, char, N, Odata, O, S, V, Vo, WT, WTo, WTfwd)
-
-void assign_request_types(const Function &F, const Argument& Arg, float requests_fraction, bool consumer, hpvm::Target target, bool owner_pred) {
-	typedef SpandexRequestType Req;
-	for (auto BB = F.begin(); BB != F.end(); ++BB) {
-		bool has_load = false;
-		for (auto I = BB->begin(); I != BB->end(); ++I) {
-			Req SRT = Req::N;
-			if (is_access_to(*I, Arg, AccessKind::load)) {
-				has_load = true;
-				if (consumer) {
-					SRT = Req::Odata;
-				} else /* producer */ {
-					if (requests_fraction > 0.5) {
-						SRT = Req::Odata;
-					} else if (target == hpvm::CPU_TARGET) {
-						SRT = Req::S;
-					} else if (target == hpvm::GPU_TARGET) {
-						if (owner_pred) {
-							SRT = Req::Vo;
-						} else {
-							SRT = Req::V;
-						}
-					}
-				}
-			}
-			if (SRT != (+Req::N)) {
-				LLVM_DEBUG(dbgs() << "assign_request_types: " << *I << " Req" << SRT._to_string() << "\n");
-			}
-		}
-		for (auto I = BB->begin(); I != BB->end(); ++I) {
-			Req SRT = Req::N;
-			if (is_access_to(*I, Arg, AccessKind::store)) {
-				if (has_load) {
-					SRT = Req::Odata;
-				} else {
-					SRT = Req::O;
-				}
-			}
-			if (SRT != (+Req::N)) {
-				LLVM_DEBUG(dbgs() << "assign_request_types: " << *I << " Req" << SRT._to_string() << "\n");
-			}
-		}
-	}
-}
-
-void assign_request_types2(const Function &F, const Argument& Arg, float requests_fraction, bool consumer, hpvm::Target target, bool owner_pred) {
-	typedef SpandexRequestType Req;
-	for (auto BB = F.begin(); BB != F.end(); ++BB) {
-		for (auto I = BB->begin(); I != BB->end(); ++I) {
-			Req SRT = Req::N;
-			if (is_access_to(*I, Arg, AccessKind::load)) {
-				if (consumer) {
-					SRT = Req::Odata;
-				} else /* producer */{
-					if (requests_fraction > 0.5) {
-						SRT = Req::Odata;
-					} else if (target == hpvm::CPU_TARGET) {
-						SRT = Req::S;
-					} else if (target == hpvm::GPU_TARGET) {
-						if (owner_pred) {
-							SRT = Req::Vo;
-						} else {
-							SRT = Req::V;
-						}
-					}
-				}
-			} else if (is_access_to(*I, Arg, AccessKind::store)) {
-				if (consumer) {
-					SRT = Req::Odata;
-				} else /* producer */ {
-					if (owner_pred) {
-						SRT = Req::WTo;
-					} else {
-						SRT = Req::WTfwd;
-					}
-				}
-			}
-			if (SRT != (+Req::N)) {
-				LLVM_DEBUG(dbgs() << "assign_request_types: " << *I << " Req" << SRT._to_string() << "\n");
-			}
-		}
-	}
-}
 
 class Spandex::impl {
 public:
@@ -122,32 +36,34 @@ public:
     AU.addPreserved<builddfg::BuildDFG>();
     AU.addPreserved<ScalarEvolutionWrapperPass>();
     AU.addPreserved<LoopInfoWrapperPass>();
+	AU.addRequired<AAResultsWrapperPass>();
   }
 
   bool runOnModule(Module &M) {
     LLVM_DEBUG(dbgs() << "vvvv Spandex vvvv\n");
 
     builddfg::BuildDFG &DFG = thisp.getAnalysis<builddfg::BuildDFG>();
-    // DFG.getRoots() is not const
+    // DFG.getRoots() is not const unfortunately
 
     const std::vector<DFInternalNode *> roots = DFG.getRoots();
 
 	bool active = false;
     if (!roots.empty()) {
 	  active = true;
-      for (const auto &root : roots) {
+      for (const auto _root : roots) {
+		  const auto& root = ptr2ref<DFInternalNode>(_root);
         digraph<Port> dfg = get_dfg(root);
         DUMP_GRAPHVIZ_PORTS(dfg);
 
         digraph<Port> leaf_dfg{dfg}; // copy
         delete_nodes<Port>(leaf_dfg, [](const Port &port) {
-          return port.N->isDummyNode() && port.N->getLevel() != 1;
+          return port.N.isDummyNode() && port.N.getLevel() != 1;
         });
         DUMP_GRAPHVIZ_PORTS(leaf_dfg);
 
-        digraph<DFNode const *> coarse_leaf_dfg =
-            map_graph<Port, DFNode const *>(
-                leaf_dfg, [](const Port &port) { return port.N; });
+        digraph<const DFNode *> coarse_leaf_dfg =
+            map_graph<Port, const DFNode *>(
+                leaf_dfg, [](const Port &port) -> const DFNode* { return &port.N; });
         DUMP_GRAPHVIZ(coarse_leaf_dfg);
 
         digraph<Port> mem_comm_dfg =
@@ -158,40 +74,22 @@ public:
             mem_comm_dfg,
             [&](const Port &producer, const adj_list<Port> &consumers) {
               if (consumers.size() > 1) {
-                errs() << "Spandex pass only works when there is not more than "
-                          "one consumer.\n";
+                errs() << "Spandex pass only works when there is one or fewer consumers.\n";
+				abort();
               }
-              assert(consumers.size() <= 1);
               if (consumers.size() == 1) {
                 const Port &consumer = *consumers.cbegin();
-                assert(producer.N->getFuncPointer());
-                assert(consumer.N->getFuncPointer());
+                assert(producer.N.getFuncPointer());
+                assert(consumer.N.getFuncPointer());
 
-				ScalarEvolution &consumerSE =
-					thisp.getAnalysis<ScalarEvolutionWrapperPass>(*consumer.N->getFuncPointer()).getSE();
-				// SE.getSmallConstantTripCount(const Loop*) is not const
+				const auto& producer_arg = ptr2ref<Argument>(producer.N.getFuncPointer()->arg_begin() + producer.pos);
+				const auto& consumer_arg = ptr2ref<Argument>(consumer.N.getFuncPointer()->arg_begin() + consumer.pos);
 
-				const LoopInfo &consumerLI = thisp.getAnalysis<LoopInfoWrapperPass>(*consumer.N->getFuncPointer()).getLoopInfo();
+				auto& producer_fn = ptr2ref<Function>(producer.N.getFuncPointer());
+				auto& consumer_fn = ptr2ref<Function>(consumer.N.getFuncPointer());
 
-				ScalarEvolution &producerSE =
-					thisp.getAnalysis<ScalarEvolutionWrapperPass>(*producer.N->getFuncPointer()).getSE();
-				// SE.getSmallConstantTripCount(const Loop*) is not const
-
-				const LoopInfo &producerLI = thisp.getAnalysis<LoopInfoWrapperPass>(*producer.N->getFuncPointer()).getLoopInfo();
-
-				const Argument& producer_arg = *(producer.N->getFuncPointer()->arg_begin() + producer.pos);
-                unsigned producer_accesses = count_accesses(
-														*producer.N->getFuncPointer(), producer_arg,
-                    AccessKind::access, producerSE, producerLI);
-				const Argument& consumer_arg = *(consumer.N->getFuncPointer()->arg_begin() + consumer.pos);
-                unsigned consumer_accesses = count_accesses(
-                    *consumer.N->getFuncPointer(),
-                    consumer_arg,
-                    AccessKind::access, consumerSE, consumerLI);
-				unsigned total_accesses = producer_accesses + consumer_accesses;
-
-				assign_request_types2(*producer.N->getFuncPointer(), producer_arg, float(producer_accesses) / float(total_accesses), false, hpvm::CPU_TARGET, true);
-				assign_request_types2(*consumer.N->getFuncPointer(), consumer_arg, float(consumer_accesses) / float(total_accesses), true, hpvm::CPU_TARGET, true);
+				assign_request_types(producer_fn, producer_arg, false, hpvm::CPU_TARGET, true, thisp);
+				assign_request_types(consumer_fn, consumer_arg, true, hpvm::CPU_TARGET, true, thisp);
               }
             });
       }

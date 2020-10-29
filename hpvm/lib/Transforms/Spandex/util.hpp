@@ -23,3 +23,15 @@ std::string demangle(const std::string &input) {
     return real_input;
   }
 }
+
+template <typename T>
+T& ptr2ref(T* t) {
+	assert(t);
+	return *t;
+}
+
+template <typename T>
+const T& ptr2ref(const T* t) {
+	assert(t);
+	return *t;
+}
