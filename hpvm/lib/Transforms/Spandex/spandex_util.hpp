@@ -4,114 +4,118 @@
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Support/Debug.h"
 #include "llvm_util.hpp"
-#include "hpvm_util.hpp"
-#include "enum.h"
 
 BETTER_ENUM(SpandexRequestType, char, O_data, O, S, V, WTfwd, WTfwd_data, Vo, WTo, WTo_data, unassigned)
 
 using Req = SpandexRequestType;
 
-constexpr unsigned char LINE_SIZE = 64;
-constexpr unsigned char WORDS_SIZE = 8;
-using WordMask = std::bitset<LINE_SIZE / WORDS_SIZE>;
+constexpr unsigned short BYTE_SIZE = 8;
+constexpr unsigned short LINE_SIZE = 64 * BYTE_SIZE;
+constexpr unsigned short WORD_SIZE = 8 * BYTE_SIZE;
+using WordMask = std::bitset<LINE_SIZE / WORD_SIZE>;
+
+class HardwareParams {
+public:
+	bool producer;
+	hpvm::Target target;
+	bool owner_pred_available;
+	size_t cache_size;
+};
 
 class MemoryAccess {
 public:
-	const llvm::Pass& pass;
-	const llvm::Function& function;
-	const llvm::BasicBlock& basic_block;
 	const llvm::Instruction& instruction;
-	const llvm::Value& pointer;
-	const AccessKind access_kind;
-	const llvm::Value& base;
-	const size_t offset;
-	const bool producer;
-	const hpvm::Target target;
-	const bool owner_pred_available;
+	const AccessKind kind;
+	const StaticMemoryLocation location;
+	const size_t pos;
 	Req req_type;
 	WordMask mask;
-
 private:
-MemoryAccess(const llvm::Pass& _pass, const llvm::Function& _function, const llvm::BasicBlock& _basic_block, const llvm::Instruction& _instruction, const llvm::Value& _pointer, const AccessKind _access_kind, const llvm::Value& _base, const size_t _offset, const bool _producer, const hpvm::Target _target, const bool _owner_pred_available)
-	: pass{_pass}
-	, function{_function}
-	, basic_block{_basic_block}
-	, instruction{_instruction}
-	, pointer{_pointer}
-	, access_kind{_access_kind}
-	, base{_base}
-	, offset{_offset}
-	, producer{_producer}
-	, target{_target}
-	, owner_pred_available{_owner_pred_available}
-	, req_type{Req::unassigned}
-	, mask{}
+	MemoryAccess(const llvm::Instruction& _instruction, AccessKind _kind, const StaticMemoryLocation& _location, size_t _pos)
+		: instruction{_instruction}
+		, kind{_kind}
+		, location{_location}
+		, pos{_pos}
+		, req_type{Req::unassigned}
 	{ }
 
 public:
-	static MemoryAccess create(const llvm::Pass& pass, const llvm::Instruction& instruction, bool producer, hpvm::Target target, bool owner_pred_available) {
-		const auto& function = ptr2ref<llvm::Function>(instruction.getFunction());
-		const auto& basic_block = ptr2ref<llvm::BasicBlock>(instruction.getParent());
+	static ResultStr<MemoryAccess>
+	create(const llvm::DataLayout& data_layout, const llvm::Instruction& instruction, size_t pos) {
+		const auto& [pointer, kind] = TRY(get_pointer_target(instruction));
+		const auto& location = TRY(StaticMemoryLocation::create(data_layout, *pointer));
+		return Ok(MemoryAccess{instruction, kind, location, pos});
+	}
+};
 
-		const auto pointer_x_access = get_pointer_target(instruction);
-		if (!pointer_x_access) {
-			errs() << "Instruction '";
-			instruction.print(errs(), true);
-			errs() << "' is not a memory access\n";
-			abort();
+class BoiledDownFunction {
+private:
+	std::vector<MemoryAccess> accesses_in_order;
+	std::unordered_map<StaticMemoryLocation, std::vector<MemoryAccess>> accesses_to_loc;
+	BoiledDownFunction() { }
+public:
+	static ResultStr<BoiledDownFunction>
+	create(const llvm::Function& function, const llvm::DataLayout& data_layout) {
+		BoiledDownFunction bdf;
+		if (&function.front() != &function.back()) {
+			return Err(str{"Spandex pass supports straight-line code for now. Function is not straight-line:\n"} + llvm_to_str_ndbg(function));
+		} else {
+			const llvm::BasicBlock& basic_block = function.getEntryBlock();
+			for (const llvm::Instruction& instruction : basic_block) {
+				if (is_memory_access(instruction)) {
+					auto access = TRY(MemoryAccess::create(data_layout, instruction, bdf.accesses_in_order.size()));
+					bdf.accesses_in_order.push_back(access);
+					bdf.accesses_to_loc[access.location].push_back(access);
+				}
+			}
+			return Ok(bdf);
 		}
-		const auto& pointer = pointer_x_access->first;
-		const auto& access_kind = pointer_x_access->second;
-
-		const auto base_x_offset = split_pointer(pointer);
-		if (!base_x_offset) {
-			errs() << "Pointer '";
-			pointer.print(errs(), true);
-			errs() << "' could not be split into base and offset\n";
-			abort();
+	}
+	size_t n_unique_bytes(size_t i, size_t j) const {
+		// TODO: improve performance of this algorithm with dynamic programming
+		size_t counter = 0;
+		std::unordered_set<StaticMemoryLocation> seen;
+		for (auto it = accesses_in_order.cbegin() + i; it < accesses_in_order.cbegin() + j; ++it) {
+			if (seen.count(it->location) == 0) {
+				seen.insert(it->location);
+				counter++;
+			}
 		}
-		const auto& base = base_x_offset->first;
-
-		auto _offset = statically_evaluate<size_t>(base_x_offset->second);
-		if (!_offset) {
-			errs() << "Offset '";
-			base_x_offset->second.print(errs(), true);
-			errs() << "' could not be statically evaluated\n";
-			abort();
-		}
-		const auto& offset = *_offset;
-		return {pass, function, basic_block, instruction, pointer, access_kind, base, offset, producer, target, owner_pred_available};
+		return counter;
+	}
+	const std::vector<MemoryAccess>& subsequent_conflicts(StaticMemoryLocation& X) const {
+		return const_cast<BoiledDownFunction&>(*this).accesses_to_loc[X];
 	}
 };
 
 /*
 Algorithm 5: Is ownership beneficial?
 */
-bool ownership_beneficial(const MemoryAccess& X) {
+static bool ownership_beneficial(const MemoryAccess& X) {
 	return false;
 }
 
 /*
 Algorithm 6: Is shared-state beneficial?
 */
-bool shared_state_beneficial(const MemoryAccess& X) {
+static bool shared_state_beneficial(const MemoryAccess& X) {
 	return false;
 }
 
 /*
 Algorithm 7: Is owner-prediction beneficial?
 */
-bool owner_pred_beneficial(const MemoryAccess& X) {
+static bool owner_pred_beneficial(const MemoryAccess& X) {
 	return false;
 }
 
-WordMask requested_words_only(const MemoryAccess& X) {
+static WordMask requested_words_only(const MemoryAccess& X) {
 	WordMask mask;
-	mask.set(X.offset % LINE_SIZE);
+	mask.set((X.location.offset % LINE_SIZE) / WORD_SIZE);
 	return mask;
 }
 
-WordMask intra_synch_load_reuse(const MemoryAccess& X) {
+static WordMask intra_synch_load_reuse(const MemoryAccess& X) {
 	WordMask mask;
 	// TODO: do this
 	return mask;
@@ -120,7 +124,7 @@ WordMask intra_synch_load_reuse(const MemoryAccess& X) {
 /*
 Algorithm 1: Select load request type.
 */
-void request_type_for_load(MemoryAccess& X) {
+static void request_type_for_load(MemoryAccess& X) {
 	if (ownership_beneficial(X)) {
 		X.req_type = Req::O_data;
 	} else if (shared_state_beneficial(X)) {
@@ -135,7 +139,7 @@ void request_type_for_load(MemoryAccess& X) {
 /*
 Algorithm 2: Select store request type.
 */
-void request_type_for_store(MemoryAccess& X) {
+static void request_type_for_store(MemoryAccess& X) {
 	if (ownership_beneficial(X)) {
 		X.req_type = Req::O;
 	} else if (owner_pred_beneficial(X)) {
@@ -148,7 +152,7 @@ void request_type_for_store(MemoryAccess& X) {
 /*
 Algorithm 3: Select RMW request type
 */
-void request_type_for_rmw(MemoryAccess& X) {
+static void request_type_for_rmw(MemoryAccess& X) {
 	if (ownership_beneficial(X)) {
 		X.req_type = Req::O_data;
 	} else if (owner_pred_beneficial(X)) {
@@ -161,7 +165,7 @@ void request_type_for_rmw(MemoryAccess& X) {
 /*
 Algorithm 4: Request-granularity selection.
 */
-void granularity_selection(MemoryAccess& X) {
+static void granularity_selection(MemoryAccess& X) {
 	if (X.req_type == +Req::V) {
 		X.mask = intra_synch_load_reuse(X);
 	} else if (X.req_type == +Req::S) {
@@ -179,7 +183,7 @@ void granularity_selection(MemoryAccess& X) {
 	}
 }
 
-void assign_request_types(llvm::Function& function, const llvm::Argument& argument, bool producer, hpvm::Target target, bool owner_pred_available, llvm::Pass& pass) {
+static void assign_request_types(llvm::Module& module, llvm::Function& function, const llvm::Argument& argument, bool producer, hpvm::Target target, bool owner_pred_available, llvm::Pass& pass) {
 	/*
 	ScalarEvolution &SE =
 		pass.getAnalysis<ScalarEvolutionWrapperPass>(function).getSE();

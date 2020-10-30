@@ -18,6 +18,7 @@ Anticipate errors related to intrinsics not found. Compile for real with
 #include "BuildDFG/BuildDFG.h"
 #include "SupportHPVM/DFGraph.h"
 #include "Spandex/Spandex.h"
+#include "hpvm_util.hpp"
 #include "spandex_util.hpp"
 
 using namespace spandex;
@@ -39,7 +40,7 @@ public:
 	AU.addRequired<AAResultsWrapperPass>();
   }
 
-  bool runOnModule(Module &M) {
+  bool runOnModule(Module &module) {
     LLVM_DEBUG(dbgs() << "vvvv Spandex vvvv\n");
 
     builddfg::BuildDFG &DFG = thisp.getAnalysis<builddfg::BuildDFG>();
@@ -88,8 +89,8 @@ public:
 				auto& producer_fn = ptr2ref<Function>(producer.N.getFuncPointer());
 				auto& consumer_fn = ptr2ref<Function>(consumer.N.getFuncPointer());
 
-				assign_request_types(producer_fn, producer_arg, false, hpvm::CPU_TARGET, true, thisp);
-				assign_request_types(consumer_fn, consumer_arg, true, hpvm::CPU_TARGET, true, thisp);
+				assign_request_types(module, producer_fn, producer_arg, false, hpvm::CPU_TARGET, true, thisp);
+				assign_request_types(module, consumer_fn, consumer_arg, true, hpvm::CPU_TARGET, true, thisp);
               }
             });
       }

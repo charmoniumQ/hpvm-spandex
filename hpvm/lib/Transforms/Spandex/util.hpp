@@ -2,8 +2,15 @@
 #include <string>
 #include <regex>
 #include <cxxabi.h>
+#include "enum.h"
+#include "result.h"
 
-std::string demangle(const std::string &input) {
+using str = std::string;
+
+template <typename T>
+using ResultStr = Result<T, str>;
+
+str demangle(const std::string &input) {
   int status = -1;
   std::string real_input =
       input.substr(input.size() - 7) == std::string{"_cloned"}
