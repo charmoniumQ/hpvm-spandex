@@ -1,17 +1,17 @@
 digraph structs {
 	node [shape=record];
-	"gamut_map_fxp" [label="{<i0>float* input|<i1>i64 bytes_input|<i2>float* result|<i3>i64 bytes_result|<i4>float* ctrl_pts|<i5>i64 bytes_ctrl_pts|<i6>float* weights|<i7>i64 bytes_weights|<i8>float* coefs|<i9>i64 bytes_coefs|<i10>float* l2_dist|<i11>i64 bytes_l2_dist|<i12>i64 row_size|<i13>i64 col_size}|gamut_map_fxp"];
-	"denoise_fxp" [label="{<i0>float* input|<i1>i64 bytes_input|<i2>float* result|<i3>i64 bytes_result|<i4>i64 row_size|<i5>i64 col_size}|denoise_fxp"];
-	"tone_map_fxp" [label="{<i0>float* input|<i1>i64 bytes_input|<i2>float* result|<i3>i64 bytes_result|<i4>float* tone_map|<i5>i64 bytes_tone_map|<i6>i64 row_size|<i7>i64 col_size}|tone_map_fxp"];
-	"descale_fxp" [label="{<i0>float* input|<i1>i64 bytes_input|<i2>i8* output|<i3>i64 bytes_result|<i4>i64 row_size|<i5>i64 col_size}|descale_fxp"];
-	"demosaic_fxp" [label="{<i0>float* input|<i1>i64 bytes_input|<i2>float* result|<i3>i64 bytes_result|<i4>i64 row_size|<i5>i64 col_size}|demosaic_fxp"];
 	"scale_fxp" [label="{<i0>i8* input|<i1>i64 bytes_input|<i2>float* output|<i3>i64 bytes_output|<i4>i64 row_size|<i5>i64 col_size}|scale_fxp"];
 	"transform_fxp" [label="{<i0>float* input|<i1>i64 bytes_input|<i2>float* result|<i3>i64 bytes_result|<i4>float* TsTw_tran|<i5>i64 bytes_TsTw|<i6>i64 row_size|<i7>i64 col_size}|transform_fxp"];
+	"gamut_map_fxp" [label="{<i0>float* input|<i1>i64 bytes_input|<i2>float* result|<i3>i64 bytes_result|<i4>float* ctrl_pts|<i5>i64 bytes_ctrl_pts|<i6>float* weights|<i7>i64 bytes_weights|<i8>float* coefs|<i9>i64 bytes_coefs|<i10>float* l2_dist|<i11>i64 bytes_l2_dist|<i12>i64 row_size|<i13>i64 col_size}|gamut_map_fxp"];
+	"descale_fxp" [label="{<i0>float* input|<i1>i64 bytes_input|<i2>i8* output|<i3>i64 bytes_result|<i4>i64 row_size|<i5>i64 col_size}|descale_fxp"];
+	"tone_map_fxp" [label="{<i0>float* input|<i1>i64 bytes_input|<i2>float* result|<i3>i64 bytes_result|<i4>float* tone_map|<i5>i64 bytes_tone_map|<i6>i64 row_size|<i7>i64 col_size}|tone_map_fxp"];
+	"denoise_fxp" [label="{<i0>float* input|<i1>i64 bytes_input|<i2>float* result|<i3>i64 bytes_result|<i4>i64 row_size|<i5>i64 col_size}|denoise_fxp"];
+	"demosaic_fxp" [label="{<i0>float* input|<i1>i64 bytes_input|<i2>float* result|<i3>i64 bytes_result|<i4>i64 row_size|<i5>i64 col_size}|demosaic_fxp"];
 
 	"demosaic_fxp" -> "denoise_fxp" [tailport=i2, headport=i0, ];
 	"tone_map_fxp" -> "descale_fxp" [tailport=i2, headport=i0, ];
-	"scale_fxp" -> "demosaic_fxp" [tailport=i2, headport=i0, ];
 	"transform_fxp" -> "gamut_map_fxp" [tailport=i2, headport=i0, ];
-	"gamut_map_fxp" -> "tone_map_fxp" [tailport=i2, headport=i0, ];
 	"denoise_fxp" -> "transform_fxp" [tailport=i2, headport=i0, ];
+	"scale_fxp" -> "demosaic_fxp" [tailport=i2, headport=i0, ];
+	"gamut_map_fxp" -> "tone_map_fxp" [tailport=i2, headport=i0, ];
 }

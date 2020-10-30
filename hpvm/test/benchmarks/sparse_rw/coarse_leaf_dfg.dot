@@ -1,11 +1,11 @@
 strict digraph {
-	"dbl_sqr_vect.entry" ;
 	"dbl_sqr_vect.exit" ;
-	"sqr_sclr" ;
 	"dbl_sclr" ;
+	"sqr_sclr" ;
+	"dbl_sqr_vect.entry" ;
 
-	"sqr_sclr" -> "dbl_sclr" ;
-	"dbl_sclr" -> "dbl_sqr_vect.exit" ;
-	"dbl_sqr_vect.entry" -> "sqr_sclr" ;
-	"dbl_sqr_vect.entry" -> "dbl_sclr" ;
+	"0x5586a424c7e0" -> "0x5586a424d6d0" ;
+	"0x5586a424c7e0" -> "0x5586a424d1f0" ;
+	"0x5586a424d6d0" -> "0x5586a424d1f0" ;
+	"0x5586a424d1f0" -> "0x5586a424c900" ;
 }

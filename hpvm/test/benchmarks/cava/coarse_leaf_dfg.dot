@@ -1,24 +1,24 @@
 strict digraph {
-	"demosaic_fxp" ;
+	"CamPipeRoot.entry" ;
 	"scale_fxp" ;
-	"gamut_map_fxp" ;
-	"transform_fxp" ;
 	"tone_map_fxp" ;
 	"descale_fxp" ;
-	"CamPipeRoot.entry" ;
+	"gamut_map_fxp" ;
+	"demosaic_fxp" ;
+	"transform_fxp" ;
 	"denoise_fxp" ;
 
-	"transform_fxp" -> "gamut_map_fxp" ;
-	"gamut_map_fxp" -> "tone_map_fxp" ;
-	"tone_map_fxp" -> "descale_fxp" ;
-	"CamPipeRoot.entry" -> "descale_fxp" ;
-	"CamPipeRoot.entry" -> "gamut_map_fxp" ;
-	"CamPipeRoot.entry" -> "transform_fxp" ;
-	"CamPipeRoot.entry" -> "tone_map_fxp" ;
-	"CamPipeRoot.entry" -> "denoise_fxp" ;
-	"CamPipeRoot.entry" -> "scale_fxp" ;
-	"CamPipeRoot.entry" -> "demosaic_fxp" ;
-	"demosaic_fxp" -> "denoise_fxp" ;
-	"scale_fxp" -> "demosaic_fxp" ;
-	"denoise_fxp" -> "transform_fxp" ;
+	"0x559ed2e2baa0" -> "0x559ed2da8e10" ;
+	"0x559ed2df5400" -> "0x559ed2e2baa0" ;
+	"0x559ed2da8e10" -> "0x559ed2e34ab0" ;
+	"0x559ed2e35740" -> "0x559ed2e35bc0" ;
+	"0x559ed2e23db0" -> "0x559ed2df5400" ;
+	"0x559ed2df5e50" -> "0x559ed2e2baa0" ;
+	"0x559ed2df5e50" -> "0x559ed2df5400" ;
+	"0x559ed2df5e50" -> "0x559ed2e23db0" ;
+	"0x559ed2df5e50" -> "0x559ed2da8e10" ;
+	"0x559ed2df5e50" -> "0x559ed2e35740" ;
+	"0x559ed2df5e50" -> "0x559ed2e34ab0" ;
+	"0x559ed2df5e50" -> "0x559ed2e35bc0" ;
+	"0x559ed2e34ab0" -> "0x559ed2e35740" ;
 }
