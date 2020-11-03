@@ -9,9 +9,8 @@ BETTER_ENUM(SpandexRequestType, char, O_data, O, S, V, WTfwd, WTfwd_data, Vo, WT
 
 using Req = SpandexRequestType;
 
-constexpr unsigned short BYTE_SIZE = 8;
-constexpr unsigned short LINE_SIZE = 64 * BYTE_SIZE;
-constexpr unsigned short WORD_SIZE = 8 * BYTE_SIZE;
+constexpr unsigned short LINE_SIZE = 64;
+constexpr unsigned short WORD_SIZE = 8;
 using WordMask = std::bitset<LINE_SIZE / WORD_SIZE>;
 
 class HardwareParams {
@@ -19,72 +18,146 @@ public:
 	bool producer;
 	hpvm::Target target;
 	bool owner_pred_available;
-	size_t cache_size;
+	unsigned int cache_size;
+	unsigned short block_size;
 };
 
 class MemoryAccess {
 public:
 	const llvm::Instruction& instruction;
 	const AccessKind kind;
-	const StaticMemoryLocation location;
-	const size_t pos;
+	const Address address;
 	Req req_type;
 	WordMask mask;
+	hpvm::Target target;
 private:
-	MemoryAccess(const llvm::Instruction& _instruction, AccessKind _kind, const StaticMemoryLocation& _location, size_t _pos)
+	MemoryAccess(const llvm::Instruction& _instruction, AccessKind _kind, const Address& _address, hpvm::Target _target)
 		: instruction{_instruction}
 		, kind{_kind}
-		, location{_location}
-		, pos{_pos}
+		, address{_address}
 		, req_type{Req::unassigned}
+		, target{_target}
 	{ }
 
 public:
 	static ResultStr<MemoryAccess>
-	create(const llvm::DataLayout& data_layout, const llvm::Instruction& instruction, size_t pos) {
+	create(const llvm::DataLayout& data_layout, const llvm::Instruction& instruction, const HardwareParams& hw_params) {
 		const auto& [pointer, kind] = TRY(get_pointer_target(instruction));
-		const auto& location = TRY(StaticMemoryLocation::create(data_layout, *pointer));
-		return Ok(MemoryAccess{instruction, kind, location, pos});
+		const auto& address = TRY(Address::create(data_layout, *pointer, hw_params.block_size));
+		return Ok(MemoryAccess{instruction, kind, address, hw_params.target});
+	}
+	float criticality_weight() {
+		if (target == hpvm::CPU_TARGET && (kind == +AccessKind::load || kind == +AccessKind::cas || kind == +AccessKind::rmw)) {
+			return 3.0;
+		} else if (target == hpvm::GPU_TARGET && (kind == +AccessKind::load || kind == +AccessKind::cas || kind == +AccessKind::rmw)) {
+			return 2.0;
+		} else {
+			return 1.0;
+		}
 	}
 };
+
+class AccessList {
+private:
+	std::vector<std::reference_wrapper<MemoryAccess>> accesses;
+public:
+	typedef std::vector<std::reference_wrapper<MemoryAccess>>::const_iterator const_iterator;
+	AccessList() { }
+	void push_back(MemoryAccess& access) { accesses.push_back(access); }
+
+};
+
+template <typename Iterator, typename Range>
+bool iterator_in_range(const Iterator it, const Range range, bool not_end = false, bool consty = true) {
+	return consty
+		? range.cbegin() <= it && (not_end ? it < range.cend() : it <= range.cend())
+		: range .begin() <= it && (not_end ? it < range .end() : it <= range .end());
+}
 
 class BoiledDownFunction {
 private:
 	std::vector<MemoryAccess> accesses_in_order;
-	std::unordered_map<StaticMemoryLocation, std::vector<MemoryAccess>> accesses_to_loc;
-	BoiledDownFunction() { }
+	std::unordered_map<Address, std::vector<MemoryAccess>> accesses_to_loc;
+	std::unordered_map<Block, std::vector<MemoryAccess>> accesses_to_block;
+	const HardwareParams& hw_params;
+	BoiledDownFunction(const HardwareParams& _hw_params)
+		: hw_params{_hw_params}
+	{ }
 public:
 	static ResultStr<BoiledDownFunction>
-	create(const llvm::Function& function, const llvm::DataLayout& data_layout) {
-		BoiledDownFunction bdf;
+	create(const llvm::Function& function, const llvm::DataLayout& data_layout, const HardwareParams& hw_params) {
+		BoiledDownFunction bdf{hw_params};
 		if (&function.front() != &function.back()) {
 			return Err(str{"Spandex pass supports straight-line code for now. Function is not straight-line:\n"} + llvm_to_str_ndbg(function));
 		} else {
 			const llvm::BasicBlock& basic_block = function.getEntryBlock();
 			for (const llvm::Instruction& instruction : basic_block) {
 				if (is_memory_access(instruction)) {
-					auto access = TRY(MemoryAccess::create(data_layout, instruction, bdf.accesses_in_order.size()));
-					bdf.accesses_in_order.push_back(access);
-					bdf.accesses_to_loc[access.location].push_back(access);
+					bdf.accesses_in_order.push_back(TRY(MemoryAccess::create(data_layout, instruction, hw_params)));
+					const auto& access = bdf.accesses_in_order.back();
+					if (access.kind == +AccessKind::rmw || access.kind == +AccessKind::cas) {
+						Err(str{"Spandex pass does not support atomics yet."});
+					}
+					bdf.accesses_to_loc  [access.address].push_back(access);
+					bdf.accesses_to_block[access.address.block].push_back(access);
 				}
 			}
 			return Ok(bdf);
 		}
 	}
-	size_t n_unique_bytes(size_t i, size_t j) const {
-		// TODO: improve performance of this algorithm with dynamic programming
-		size_t counter = 0;
-		std::unordered_set<StaticMemoryLocation> seen;
-		for (auto it = accesses_in_order.cbegin() + i; it < accesses_in_order.cbegin() + j; ++it) {
-			if (seen.count(it->location) == 0) {
-				seen.insert(it->location);
-				counter++;
+	typedef std::vector<MemoryAccess>::const_iterator const_iterator;
+	size_t n_unique_bytes(const const_iterator& begin, const const_iterator& end) const {
+		// TODO: improve performance of this algorithm with a Binary Indexed Tree
+		std::unordered_set<Address> cache;
+		assert(iterator_in_range(begin, accesses_in_order));
+		assert(iterator_in_range(end, accesses_in_order));
+		for (auto it = begin; it != end; ++it) {
+			// Assume access is to word
+			assert(it->address.aligned(WORD_SIZE));
+			for (unsigned short byte = 0; byte < WORD_SIZE; ++byte) {
+				cache.insert(it->address + byte);
 			}
 		}
-		return counter;
+		return cache.size();
 	}
-	const std::vector<MemoryAccess>& subsequent_conflicts(StaticMemoryLocation& X) const {
-		return const_cast<BoiledDownFunction&>(*this).accesses_to_loc[X];
+	bool reuse_possible(const const_iterator& begin, const const_iterator& end) const {
+		return n_unique_bytes(begin, end) < 0.75 * hw_params.cache_size;
+	}
+	std::vector<MemoryAccess>& all_loc_conflicts(const Address& address) const {
+		return const_cast<BoiledDownFunction&>(*this).accesses_to_loc[address];
+	}
+	std::vector<MemoryAccess>& all_block_conflicts(const Block& block) const {
+		return const_cast<BoiledDownFunction&>(*this).accesses_to_block[block];
+	}
+	std::pair<const_iterator, const_iterator> subsequent_conflicts(const const_iterator& access) {
+		assert(iterator_in_range(access, accesses_in_order));
+		auto conflicts = all_loc_conflicts(access->address);
+		const_iterator it = std::find_if(conflicts.cbegin(), conflicts.cend(), [&](const MemoryAccess& ma) { return &ma == &*access; });
+		return std::make_pair<const_iterator, const_iterator>(std::move(it), conflicts.cend());
+		
+	}
+	bool sync_sept(const const_iterator& X, const const_iterator& Y) const {
+		// Assuming no "manual" synchronization
+		return false;
+	}
+	WordMask intra_sync_load_reuse(const const_iterator& X) const {
+		assert(iterator_in_range(X, accesses_in_order));
+		WordMask mask;
+		std::unordered_set<Address> cache;
+		for (auto it = X; it != accesses_in_order.cend(); ++it) {
+			// Assume access is to word
+			assert(it->address.aligned(WORD_SIZE));
+			for (unsigned short byte = 0; byte < WORD_SIZE; ++byte) {
+				cache.insert(it->address + byte);
+			}
+			if (cache.size() > 0.75 * hw_params.cache_size) {
+				break;
+			}
+			if (it->kind == +AccessKind::load && it->address.block == X->address.block){
+				mask.set(it->address.block_offset / WORD_SIZE);
+			}
+		}
+		return mask;
 	}
 };
 
@@ -92,6 +165,8 @@ public:
 Algorithm 5: Is ownership beneficial?
 */
 static bool ownership_beneficial(const MemoryAccess& X) {
+	unsigned char phase = 4;
+	float X_score = 0.0;
 	return false;
 }
 
@@ -111,7 +186,7 @@ static bool owner_pred_beneficial(const MemoryAccess& X) {
 
 static WordMask requested_words_only(const MemoryAccess& X) {
 	WordMask mask;
-	mask.set((X.location.offset % LINE_SIZE) / WORD_SIZE);
+	mask.set(X.address.block_offset / WORD_SIZE);
 	return mask;
 }
 

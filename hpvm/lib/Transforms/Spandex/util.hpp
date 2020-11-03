@@ -3,6 +3,7 @@
 #include <regex>
 #include <cxxabi.h>
 #include "enum.h"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #include "result.h"
 
 using str = std::string;

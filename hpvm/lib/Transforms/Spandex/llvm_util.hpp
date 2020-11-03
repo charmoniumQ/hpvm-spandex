@@ -162,18 +162,60 @@ statically_evaluate(const llvm::Value& value) {
 	}
 }
 
-class StaticMemoryLocation {
+class Segment {
 public:
-	const llvm::Value& base;
-	size_t offset;
-private:
-	StaticMemoryLocation(const llvm::Value& _base, size_t _offset)
+	Segment(const llvm::Value& _base, unsigned short _block_size)
 		: base{_base}
-		, offset{_offset}
+		, block_size{_block_size}
 	{ }
+	const llvm::Value& base;
+	unsigned short block_size;
+	bool operator==(const Segment& other) const { return &base == &other.base; }
+	bool operator!=(const Segment& other) const { return !(*this == other); }
+};
+
+class Block {
 public:
-	static ResultStr<StaticMemoryLocation>
-	create(const llvm::DataLayout& data_layout, const llvm::Value& pointer) {
+	Block(Segment _segment, unsigned int _block_index)
+		: segment{_segment}
+		, block_index{_block_index}
+	{ }
+	Segment segment;
+	unsigned int block_index;
+	bool operator==(const Block& other) const { return segment == other.segment && block_index == other.block_index; }
+	bool operator!=(const Block& other) const { return !(*this == other); }
+	Block operator+(int i) const {
+		assert(int(block_index) + i >= 0);
+		return Block{segment, block_index + i};
+	}
+	Block operator-(int i) const {
+		return *this + (-i);
+	}
+};
+
+class Address {
+public:
+	Address(Block _block, unsigned short _block_offset)
+		: block{_block}
+	{ }
+	Block block;
+	unsigned int block_offset;
+	bool aligned(unsigned short alignment) const {
+		assert(block.segment.block_size % alignment == 0);
+		return block_offset % alignment == 0;
+	}
+	bool operator==(const Address& other) const { return block == other.block && block_offset == other.block_offset; }
+	bool operator!=(const Address& other) const { return !(*this == other); }
+	Address operator+(int i) const {
+		assert(block_offset + i > 0);
+		unsigned int new_block_index = (block_offset + i) / block.segment.block_size;
+		unsigned short new_block_offset = (block_offset + i) % block.segment.block_size;
+		return Address{Block{block.segment, new_block_index}, new_block_offset};
+	}
+	Address operator-(int i) const { return *this + (-i); }
+
+	static ResultStr<Address>
+	create(const llvm::DataLayout& data_layout, const llvm::Value& pointer, unsigned short block_size) {
 		const auto base_x_offset = TRY(split_pointer(data_layout, pointer));
 		const auto& base = *base_x_offset.first;
 
@@ -185,35 +227,30 @@ public:
 		if (!llvm::isa<llvm::Argument>(&base)) {
 			return Err(str{"Base pointer '"} + llvm_to_str(base) + str{"' is not the start of a segment"});
 		} else {
-			const auto offset = TRY(statically_evaluate<size_t>(*base_x_offset.second));
-			return Ok(StaticMemoryLocation{base, offset});
+			size_t offset = TRY(statically_evaluate<size_t>(*base_x_offset.second));
+			unsigned int block_index = offset / block_size;
+			unsigned short block_offset = offset % block_size;
+			return Ok(Address{Block{Segment{base, block_size}, block_index}, block_offset});
 		}
-	}
-	bool operator==(const StaticMemoryLocation& other) const {
-		return &base == &other.base && offset == other.offset;
-	}
-	bool operator!=(const StaticMemoryLocation& other) const {
-		return !(*this == other);
 	}
 };
 
 namespace std {
-	template<>
-	struct hash<StaticMemoryLocation> {
-		std::size_t operator()(const StaticMemoryLocation& s) const noexcept {
-			// TODO: more sophisticated hashing algorithm
-			// This one probably doesn't utilize the low bits.
-			return s.offset ^ reinterpret_cast<size_t>(&s.base);
+	template<> struct hash<Segment> {
+		std::size_t operator()(const Segment& segment) const noexcept {
+			return reinterpret_cast<size_t>(&segment.base);
+		}
+	};
+
+	template<> struct hash<Block> {
+		std::size_t operator()(const Block& block) const noexcept {
+			return reinterpret_cast<size_t>(&block.segment.base) ^ block.block_index;
+		}
+	};
+
+	template<> struct hash<Address> {
+		std::size_t operator()(const Address& address) const noexcept {
+			return reinterpret_cast<size_t>(&address.block.segment.base) ^ address.block.block_index ^ address.block_offset;
 		}
 	};
 }
-
-// class StaticBlockLocation : StaticMemoryLocation {
-// public:
-// 	size_t block_size;
-// 	StaticBlockLocation(const llvm::Value& _base, size_t _offset, size_t _block_size)
-// 		: block_size{_block_size}
-// 	{
-// 		assert(offset % block_size == 0);
-// 	}
-// };
