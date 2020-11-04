@@ -161,14 +161,53 @@ public:
 	}
 };
 
+
+/*
+ResultStr<std::vector<BoiledDownFunction>> subsequent_conflicts(const digraph<const llvm::DFNode*>& bdf_dfg, const llvm::DataLayout& data_layout) {
+	map_graph<const llvm::DFNode*, BoiledDownFunction>(bdf_dfg, [](const llvm::DFNode* node) {
+		if (node->isRoot()) {
+		} else {
+			const auto& function = ptr2ref<llvm::Function>(node.getFuncPointer())
+			node->getTargetHint()
+			create(function, data_layout, const HardwareParams& hw_params);
+		dfnode
+		}
+	});
+}
+
+concat_n_input_iterators subsequent_conflicts(const digraph<const BoiledDownFunction&>& bdf_dfg, const BoiledDownFunction& root) {
+	map_graph<const>(bdf_dfg.)
+}
+
+concat_two_input_iterators subsequent_conflicts(const digraph<const BoiledDownFunction&>& bdf_dfg, const BoiledDownFunction& root, const typename digraph<const BoiledDownFunction&>::const_iterator& it) {
+	
+}
+*/
+
 /*
 Algorithm 5: Is ownership beneficial?
 */
-static bool ownership_beneficial(const MemoryAccess& X) {
-	unsigned char phase = 4;
-	float X_score = 0.0;
-	return false;
+static bool ownership_beneficial(const MemoryAccess& X) { return false; }
+	/*
+static bool ownership_beneficial(const digraph<std::reference_wrapper<const BoiledDownFunction>>& bdf_dfg, const BoiledDownFunction& root) {
+	for (auto bdf_it = bfs_iterator{bdf_dfg, root}; it != bfs_iterator{}; ++it) {
+		const auto& bdf = *bdf_it;
+		for (auto X_it = bdf.accesses_in_order.begin(); X_it != bdf.accesses_in_order.end(); ++X_it) {
+			// Is ownership beneficial for X?
+			MemoryAccess& X = *X_it;
+			unsigned char phase = 4;
+			float X_score = 0.0;
+			const auto& Y_prev = X;
+			for (auto Y_it = X_it+1; Y_it != bdf.accesses_in_order.end(); ++Y_it) {
+				
+			}
+			for (auto jt = it; jt != bfs_iterator{}; ++jt) {
+
+			}
+		}
+	}
 }
+*/
 
 /*
 Algorithm 6: Is shared-state beneficial?

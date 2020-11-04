@@ -5,19 +5,17 @@
 #include <algorithm>
 #include <type_traits>
 #include <functional>
+#include "util.hpp"
 
 /*
 Utilities for generic digraphs, described as
-
-template <typename Node>
-std::unordered_map<Node, std::unordered_set<Node>>
-
 */
 
-template <typename Node> using adj_list = std::unordered_set<Node>;
+template <typename Node, typename Hash = std::hash<typename std::remove_const<typename remove_reference_wrapper<Node>::type>::type>>
+using adj_list = std::unordered_set<Node, Hash>;
 
-template <typename Node>
-using digraph = std::unordered_map<Node, adj_list<Node>>;
+template <typename Node, typename Hash = std::hash<typename std::remove_const<typename remove_reference_wrapper<Node>::type>::type>>
+using digraph = std::unordered_map<Node, adj_list<Node, Hash>, Hash>;
 
 template <typename Node>
 void for_each_adj_list(
@@ -61,56 +59,62 @@ template <typename Node> digraph<Node> invert(const digraph<Node> &digraph_) {
   return inverse;
 }
 
-template <typename Node> class bfs_iterator {
+template <typename Node> class bfs_iterator
+  // Iterator traits - typedefs and types required to be STL compliant
+	: public std::iterator<std::input_iterator_tag, Node, size_t, const Node*, const Node&>
+{
 public:
-  bfs_iterator() : valid_cur{false} {}
+  bfs_iterator() {}
 
   bfs_iterator(const digraph<Node> &digraph_, Node src)
-      : _digraph{digraph_}, cur{src}, valid_cur{true} {}
+      : _digraph{digraph_}, cur{std::make_optional<Node>(src)} {}
 
-  bool empty() { return !valid_cur; }
+	bool empty() const { return cur.has_value(); }
+	const Node &operator*() const {
+    assert(!empty() && "Accessed a completed iterator");
+    return *cur;
+  }
   Node &operator*() {
     assert(!empty() && "Accessed a completed iterator");
-    return cur;
+    return *cur;
   }
-  Node *operator->() { return &cur; }
+	const Node *operator->() const { return **this; }
+  Node *operator->() { return **this; }
   bfs_iterator &operator++() {
     // only works in acyclic graph
     assert(!empty() && "Incremented a completed iterator");
-    if (_digraph.count(cur) != 0) {
-      for (const auto &next : _digraph.at(cur)) {
+	i++;
+    if (_digraph.count(*cur) != 0) {
+      for (const auto &next : _digraph.at(*cur)) {
         lst.push_back(next);
       }
     }
     if (lst.empty()) {
-      valid_cur = false;
+		cur = std::nullopt;
     } else {
-      cur = lst.front();
+		cur = lst.front();
       lst.pop_front();
     }
     return *this;
   }
-  bool operator==(const bfs_iterator &other) {
-    return cur == other.cur || (empty() && other.empty());
-  }
-  bool operator!=(const bfs_iterator &other) { return !(*this == other); }
   bfs_iterator operator++(int) {
     bfs_iterator other = *this;
     ++*this;
     return other;
   }
-  // Iterator traits - typedefs and types required to be STL compliant
-  typedef std::ptrdiff_t difference_type;
-  typedef Node value_type;
-  typedef Node *pointer;
-  typedef Node &reference;
-  typedef size_t size_type;
-  std::input_iterator_tag iterator_category;
+  bool operator==(const bfs_iterator &other) const {
+	  if (empty() || other.empty()) {
+		  return empty() && other.empty();
+	  } else {
+		  return i == other.i && _digraph == other._digraph;
+	  }
+  }
+  bool operator!=(const bfs_iterator &other) const { return !(*this == other); }
 
 private:
+	size_t i = 0;
   const digraph<Node> _digraph;
-  Node cur;
-  bool valid_cur;
+	std::optional<Node> cur;
   std::deque<Node> lst;
 };
 
@@ -131,9 +135,8 @@ std::vector<Node> bfs(const digraph<Node> &digraph_, Node src) {
 
 template <typename Node>
 bool is_descendant(const digraph<Node> &digraph_, Node n1, Node n2) {
-	auto descendants = bfs<Node>(digraph_, n1);
-  return std::find(descendants.cbegin(), descendants.cend(), n2) !=
-	  descendants.cend();
+	return std::find(bfs_iterator<Node>{digraph_, n1}, bfs_iterator<Node>{}, n2) !=
+	  bfs_iterator<Node>{};
 }
 
 template <typename Node1, typename Node2>

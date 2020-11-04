@@ -253,4 +253,24 @@ namespace std {
 			return reinterpret_cast<size_t>(&address.block.segment.base) ^ address.block.block_index ^ address.block_offset;
 		}
 	};
+
+	template <> struct hash<llvm::DFNode> {
+		std::size_t operator()(const llvm::DFNode& address) const noexcept {
+			return reinterpret_cast<size_t>(&address);
+		}
+	};
+
+	bool operator==(const llvm::DFNode& a, const llvm::DFNode& b) {
+		return &a == &b;
+	}
+	bool operator!=(const llvm::DFNode& a, const llvm::DFNode& b) {
+		return !(a == b);
+	}
+}
+
+bool operator==(const llvm::DFNode& a, const llvm::DFNode& b) {
+	return &a == &b;
+}
+bool operator!=(const llvm::DFNode& a, const llvm::DFNode& b) {
+	return !(a == b);
 }

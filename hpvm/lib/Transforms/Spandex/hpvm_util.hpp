@@ -33,7 +33,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &stream,
 	<< " -> " << Port{ptr2ref<llvm::DFNode>(E.getDestDF()), E.getDestPosition()} << "}";
 }
 
-class get_dfg_helper : public DFNodeVisitor {
+class get_dfg_helper : public llvm::DFNodeVisitor {
 private:
   digraph<Port> dfg;
 
@@ -78,8 +78,20 @@ digraph<Port> get_dfg(const llvm::DFInternalNode& N) {
   return gdh.get_dfg();
 }
 
+digraph<Port> get_leaf_dfg(const digraph<Port>& dfg) {
+	digraph<Port> leaf_dfg{dfg}; // copy
+	delete_nodes<Port>(leaf_dfg, [](const Port &port) {
+		return port.N.isDummyNode() && port.N.getLevel() != 1;
+	});
+	return leaf_dfg;
+}
+
+digraph<Ref<llvm::DFNode>> get_coarse_leaf_dfg(const digraph<Port>& leaf_dfg) {
+	return map_graph<Port, Ref<llvm::DFNode>>(leaf_dfg, [](const Port &port) { return std::cref(port.N); });
+}
+
 digraph<Port> get_mem_comm_dfg(const digraph<Port> &dfg,
-                               const digraph<const llvm::DFNode *> &coarse_dfg) {
+                               const digraph<Ref<llvm::DFNode>> &coarse_dfg) {
   digraph<Port> result;
   for_each_adj_list<Port>(dfg, [&](const Port &src, const adj_list<Port> dsts) {
     if (dsts.size() > 1 && dsts.cbegin()->get_type().isPointerTy()) {
@@ -89,7 +101,7 @@ digraph<Port> get_mem_comm_dfg(const digraph<Port> &dfg,
             if (true &&
                 ptr2ref<llvm::Function>(dst1.N.getFuncPointer()).hasAttribute(dst1.pos + 1, llvm::Attribute::Out) &&
                 ptr2ref<llvm::Function>(dst2.N.getFuncPointer()).hasAttribute(dst2.pos + 1, llvm::Attribute::In ) &&
-                is_descendant<const llvm::DFNode *>(coarse_dfg, &dst1.N, &dst2.N)) {
+                is_descendant<Ref<llvm::DFNode>>(coarse_dfg, dst1.N, dst2.N)) {
               result[dst1].insert(dst2);
             }
           }

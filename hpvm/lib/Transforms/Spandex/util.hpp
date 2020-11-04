@@ -33,6 +33,11 @@ str demangle(const std::string &input) {
 }
 
 template <typename T>
+using Ref = std::reference_wrapper<const T>;
+template <typename T>
+using MutRef = std::reference_wrapper<T>;
+
+template <typename T>
 T& ptr2ref(T* t) {
 	assert(t);
 	return *t;
@@ -43,3 +48,6 @@ const T& ptr2ref(const T* t) {
 	assert(t);
 	return *t;
 }
+
+template <typename T> struct remove_reference_wrapper { typedef T type; };
+template <typename T> struct remove_reference_wrapper<std::reference_wrapper<T>> { typedef T type; };

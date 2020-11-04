@@ -56,19 +56,13 @@ public:
         digraph<Port> dfg = get_dfg(root);
         DUMP_GRAPHVIZ_PORTS(dfg);
 
-        digraph<Port> leaf_dfg{dfg}; // copy
-        delete_nodes<Port>(leaf_dfg, [](const Port &port) {
-          return port.N.isDummyNode() && port.N.getLevel() != 1;
-        });
+        digraph<Port> leaf_dfg = get_leaf_dfg(dfg);
         DUMP_GRAPHVIZ_PORTS(leaf_dfg);
 
-        digraph<const DFNode *> coarse_leaf_dfg =
-            map_graph<Port, const DFNode *>(
-                leaf_dfg, [](const Port &port) -> const DFNode* { return &port.N; });
-        DUMP_GRAPHVIZ(coarse_leaf_dfg);
+        digraph<Ref<llvm::DFNode>> coarse_leaf_dfg = get_coarse_leaf_dfg(leaf_dfg);
+        //DUMP_GRAPHVIZ(coarse_leaf_dfg);
 
-        digraph<Port> mem_comm_dfg =
-            get_mem_comm_dfg(leaf_dfg, coarse_leaf_dfg);
+        digraph<Port> mem_comm_dfg = get_mem_comm_dfg(leaf_dfg, coarse_leaf_dfg);
         DUMP_GRAPHVIZ_PORT_PTRS(mem_comm_dfg);
 
         for_each_adj_list<Port>(
