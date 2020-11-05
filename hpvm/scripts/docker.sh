@@ -97,7 +97,9 @@ FROM ${os}:${os_tag}
 # nano is necessary to debug
 ENV DEBIAN_FRONTEND=noninteractive TZ=America/Chicago  LANG=en_US.utf8
 RUN \
-    apt-get update && apt-get upgrade -y && apt-get autoremove -y && \
+    apt-get update && \
+    apt-get upgrade -y && \
+    apt-get autoremove -y && \
     apt-get install -y locales sudo gnupg2 curl apt-transport-https ca-certificates nano tzdata && \
     rm -rf /var/lib/apt/lists/* && \
     localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 && \

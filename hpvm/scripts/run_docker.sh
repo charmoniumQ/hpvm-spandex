@@ -8,7 +8,7 @@ env \
 	os_tag=20.04 \
 	mount_cwd=yes \
 	interactive=yes \
-	packages="git wget xz-utils cmake make g++ python ocl-icd-opencl-dev software-properties-common" \
+	packages="git wget xz-utils cmake make g++ python ocl-icd-opencl-dev software-properties-common ninja-build" \
 	command="${command:-./scripts/hpvm_build.sh}" \
 	./scripts/docker.sh
 # sudo add-apt-repository ppa:pypy/ppa
