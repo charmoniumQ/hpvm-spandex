@@ -35,7 +35,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &stream,
 
 class get_dfg_helper : public llvm::DFNodeVisitor {
 private:
-  digraph<Port> dfg;
+  Digraph<Port> dfg;
 
 public:
 	const llvm::DFNode& normalize(const llvm::DFNode& orig, bool src) {
@@ -67,10 +67,10 @@ public:
   virtual void visit(llvm::DFLeafNode *N) {
 	  visit2(ptr2ref<llvm::DFNode>(reinterpret_cast<llvm::DFNode*>(N)));
   }
-  digraph<Port> get_dfg() { return dfg; }
+  Digraph<Port> get_dfg() { return dfg; }
 };
 
-digraph<Port> get_dfg(const llvm::DFInternalNode& N) {
+Digraph<Port> get_dfg(const llvm::DFInternalNode& N) {
   get_dfg_helper gdh;
   // I know this visitor does not modify the graph a priori
   // but the graph visitor API (not owned by me) is marked as non-const
@@ -78,22 +78,22 @@ digraph<Port> get_dfg(const llvm::DFInternalNode& N) {
   return gdh.get_dfg();
 }
 
-digraph<Port> get_leaf_dfg(const digraph<Port>& dfg) {
-	digraph<Port> leaf_dfg{dfg}; // copy
+Digraph<Port> get_leaf_dfg(const Digraph<Port>& dfg) {
+	Digraph<Port> leaf_dfg{dfg}; // copy
 	delete_nodes<Port>(leaf_dfg, [](const Port &port) {
 		return port.N.isDummyNode() && port.N.getLevel() != 1;
 	});
 	return leaf_dfg;
 }
 
-digraph<Ref<llvm::DFNode>> get_coarse_leaf_dfg(const digraph<Port>& leaf_dfg) {
+Digraph<Ref<llvm::DFNode>> get_coarse_leaf_dfg(const Digraph<Port>& leaf_dfg) {
 	return map_graph<Port, Ref<llvm::DFNode>>(leaf_dfg, [](const Port &port) { return std::cref(port.N); });
 }
 
-digraph<Port> get_mem_comm_dfg(const digraph<Port> &dfg,
-                               const digraph<Ref<llvm::DFNode>> &coarse_dfg) {
-  digraph<Port> result;
-  for_each_adj_list<Port>(dfg, [&](const Port &src, const adj_list<Port> dsts) {
+Digraph<Port> get_mem_comm_dfg(const Digraph<Port> &dfg,
+                               const Digraph<Ref<llvm::DFNode>> &coarse_dfg) {
+  Digraph<Port> result;
+  for_each_adj_list<Port>(dfg, [&](const Port &src, const AdjList<Port> dsts) {
     if (dsts.size() > 1 && dsts.cbegin()->get_type().isPointerTy()) {
       for (const Port &dst1 : dsts) {
         for (const Port &dst2 : dsts) {
@@ -113,7 +113,7 @@ digraph<Port> get_mem_comm_dfg(const digraph<Port> &dfg,
 }
 
 
-llvm::raw_ostream &dump_graphviz_ports(llvm::raw_ostream &os, const digraph<Port> &dfg,
+llvm::raw_ostream &dump_graphviz_ports(llvm::raw_ostream &os, const Digraph<Port> &dfg,
 									   bool inps_only = false) {
   os << "digraph structs {\n";
 

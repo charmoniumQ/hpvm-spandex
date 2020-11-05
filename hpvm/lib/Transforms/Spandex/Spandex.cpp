@@ -53,21 +53,21 @@ public:
 	  active = true;
       for (const auto _root : roots) {
 		  const auto& root = ptr2ref<DFInternalNode>(_root);
-        digraph<Port> dfg = get_dfg(root);
+        Digraph<Port> dfg = get_dfg(root);
         DUMP_GRAPHVIZ_PORTS(dfg);
 
-        digraph<Port> leaf_dfg = get_leaf_dfg(dfg);
+        Digraph<Port> leaf_dfg = get_leaf_dfg(dfg);
         DUMP_GRAPHVIZ_PORTS(leaf_dfg);
 
-        digraph<Ref<llvm::DFNode>> coarse_leaf_dfg = get_coarse_leaf_dfg(leaf_dfg);
+        Digraph<Ref<llvm::DFNode>> coarse_leaf_dfg = get_coarse_leaf_dfg(leaf_dfg);
         //DUMP_GRAPHVIZ(coarse_leaf_dfg);
 
-        digraph<Port> mem_comm_dfg = get_mem_comm_dfg(leaf_dfg, coarse_leaf_dfg);
+        Digraph<Port> mem_comm_dfg = get_mem_comm_dfg(leaf_dfg, coarse_leaf_dfg);
         DUMP_GRAPHVIZ_PORT_PTRS(mem_comm_dfg);
 
         for_each_adj_list<Port>(
             mem_comm_dfg,
-            [&](const Port &producer, const adj_list<Port> &consumers) {
+            [&](const Port &producer, const AdjList<Port> &consumers) {
               if (consumers.size() > 1) {
                 errs() << "Spandex pass only works when there is one or fewer consumers.\n";
 				abort();

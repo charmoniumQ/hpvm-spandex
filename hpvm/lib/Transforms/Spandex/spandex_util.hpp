@@ -47,9 +47,11 @@ public:
 		return Ok(MemoryAccess{instruction, kind, address, hw_params.target});
 	}
 	float criticality_weight() {
-		if (target == hpvm::CPU_TARGET && (kind == +AccessKind::load || kind == +AccessKind::cas || kind == +AccessKind::rmw)) {
+		if (target == hpvm::CPU_TARGET
+		    && (kind == +AccessKind::load || kind == +AccessKind::cas || kind == +AccessKind::rmw)) {
 			return 3.0;
-		} else if (target == hpvm::GPU_TARGET && (kind == +AccessKind::load || kind == +AccessKind::cas || kind == +AccessKind::rmw)) {
+		} else if (target == hpvm::GPU_TARGET
+		           && (kind == +AccessKind::load || kind == +AccessKind::cas || kind == +AccessKind::rmw)) {
 			return 2.0;
 		} else {
 			return 1.0;
@@ -77,18 +79,22 @@ bool iterator_in_range(const Iterator it, const Range range, bool not_end = fals
 class BoiledDownFunction {
 private:
 	std::vector<MemoryAccess> accesses_in_order;
-	std::unordered_map<Address, std::vector<MemoryAccess>> accesses_to_loc;
-	std::unordered_map<Block, std::vector<MemoryAccess>> accesses_to_block;
+	std::unordered_map<Address, std::vector<Ref<const MemoryAccess>>> accesses_to_loc;
+	std::unordered_map<Block, std::vector<Ref<const MemoryAccess>>> accesses_to_block;
 	const HardwareParams& hw_params;
 	BoiledDownFunction(const HardwareParams& _hw_params)
 		: hw_params{_hw_params}
 	{ }
 public:
+	static BoiledDownFunction create(const HardwareParams& hw_params) {
+		return BoiledDownFunction{hw_params};
+	}
+
 	static ResultStr<BoiledDownFunction>
 	create(const llvm::Function& function, const llvm::DataLayout& data_layout, const HardwareParams& hw_params) {
 		BoiledDownFunction bdf{hw_params};
 		if (&function.front() != &function.back()) {
-			return Err(str{"Spandex pass supports straight-line code for now. Function is not straight-line:\n"} + llvm_to_str_ndbg(function));
+			return Err("Spandex pass supports straight-line code for now. Function is not straight-line:\n" + llvm_to_str_ndbg(function));
 		} else {
 			const llvm::BasicBlock& basic_block = function.getEntryBlock();
 			for (const llvm::Instruction& instruction : basic_block) {
@@ -98,7 +104,7 @@ public:
 					if (access.kind == +AccessKind::rmw || access.kind == +AccessKind::cas) {
 						Err(str{"Spandex pass does not support atomics yet."});
 					}
-					bdf.accesses_to_loc  [access.address].push_back(access);
+					bdf.accesses_to_loc  [access.address      ].push_back(access);
 					bdf.accesses_to_block[access.address.block].push_back(access);
 				}
 			}
@@ -123,18 +129,11 @@ public:
 	bool reuse_possible(const const_iterator& begin, const const_iterator& end) const {
 		return n_unique_bytes(begin, end) < 0.75 * hw_params.cache_size;
 	}
-	std::vector<MemoryAccess>& all_loc_conflicts(const Address& address) const {
+	const std::vector<Ref<const MemoryAccess>>& all_loc_conflicts(const Address& address) const {
 		return const_cast<BoiledDownFunction&>(*this).accesses_to_loc[address];
 	}
-	std::vector<MemoryAccess>& all_block_conflicts(const Block& block) const {
+	const std::vector<Ref<const MemoryAccess>>& all_block_conflicts(const Block& block) const {
 		return const_cast<BoiledDownFunction&>(*this).accesses_to_block[block];
-	}
-	std::pair<const_iterator, const_iterator> subsequent_conflicts(const const_iterator& access) {
-		assert(iterator_in_range(access, accesses_in_order));
-		auto conflicts = all_loc_conflicts(access->address);
-		const_iterator it = std::find_if(conflicts.cbegin(), conflicts.cend(), [&](const MemoryAccess& ma) { return &ma == &*access; });
-		return std::make_pair<const_iterator, const_iterator>(std::move(it), conflicts.cend());
-		
 	}
 	bool sync_sept(const const_iterator& X, const const_iterator& Y) const {
 		// Assuming no "manual" synchronization
@@ -161,36 +160,71 @@ public:
 	}
 };
 
+using StaticTraceIt = LazyTransform<BfsIt<Ref<llvm::DFNode>>, BoiledDownFunction>;
+
+StaticTraceIt get_static_trace(
+	const Digraph<Ref<llvm::DFNode>>& dfg,
+	const llvm::DFNode& root,
+	const llvm::DataLayout& data_layout,
+	const HardwareParams& gpu_params,
+	const HardwareParams& cpu_params
+) {
+	return LazyTransform<BfsIt<Ref<llvm::DFNode>>, BoiledDownFunction>{
+		BfsIt<Ref<llvm::DFNode>>{dfg, root},
+		BfsIt<Ref<llvm::DFNode>>{},
+		[&](const llvm::DFNode& node) -> BoiledDownFunction {
+			if (node.isRoot()) {
+				return BoiledDownFunction::create(cpu_params);
+			} else {
+				const auto& function = ptr2ref<llvm::Function>(node.getFuncPointer());
+				return BoiledDownFunction::create(function, data_layout, node.getTargetHint() == hpvm::GPU_TARGET ? gpu_params : cpu_params).unwrap();
+			}
+		}
+	};
+}
+
+using IntraSyncConflictsIt = typename std::vector<Ref<const MemoryAccess>>::const_iterator;
+using SubsequentConflictsIt = LazyTransform<StaticTraceIt, std::pair<IntraSyncConflictsIt, IntraSyncConflictsIt>>;
+
+SubsequentConflictsIt subsequent_conflicts(StaticTraceIt after_sync, const MemoryAccess& ma, const Address& address) {
+	const BoiledDownFunction& current_bdf = *after_sync;
+	return
+		LazyTransform<StaticTraceIt, std::pair<IntraSyncConflictsIt, IntraSyncConflictsIt>>{
+			after_sync + 1,
+			after_sync.end(),
+			[&](const BoiledDownFunction& bdf) -> std::pair<IntraSyncConflictsIt, IntraSyncConflictsIt> {
+				if (&bdf == &current_bdf) {
+					const std::vector<Ref<const MemoryAccess>>& block_accesses = bdf.all_loc_conflicts(ma.address);
+					IntraSyncConflictsIt rest_of_block_accesses = std::find_if(block_accesses.cbegin(), block_accesses.cend(), [&](const MemoryAccess& ma2) {
+						return &ma == &ma2;
+					});
+					return std::make_pair<IntraSyncConflictsIt, IntraSyncConflictsIt>(rest_of_block_accesses + 1, block_accesses.cend());
+				} else {
+					return std::make_pair<IntraSyncConflictsIt, IntraSyncConflictsIt>(bdf.all_loc_conflicts(address).cbegin(), bdf.all_loc_conflicts(address).cend());
+				}
+			}
+		};
+}
 
 /*
-ResultStr<std::vector<BoiledDownFunction>> subsequent_conflicts(const digraph<const llvm::DFNode*>& bdf_dfg, const llvm::DataLayout& data_layout) {
-	map_graph<const llvm::DFNode*, BoiledDownFunction>(bdf_dfg, [](const llvm::DFNode* node) {
-		if (node->isRoot()) {
-		} else {
-			const auto& function = ptr2ref<llvm::Function>(node.getFuncPointer())
-			node->getTargetHint()
-			create(function, data_layout, const HardwareParams& hw_params);
-		dfnode
-		}
-	});
-}
-
-concat_n_input_iterators subsequent_conflicts(const digraph<const BoiledDownFunction&>& bdf_dfg, const BoiledDownFunction& root) {
-	map_graph<const>(bdf_dfg.)
-}
-
-concat_two_input_iterators subsequent_conflicts(const digraph<const BoiledDownFunction&>& bdf_dfg, const BoiledDownFunction& root, const typename digraph<const BoiledDownFunction&>::const_iterator& it) {
-	
+SubsequentConflictsIt subsequent_block_conflicts(StaticTraceIt static_trace_after_block, std::vector<Ref<const MemoryAccess>>::const_iterator rest_of_block, const Address& address) {
+	return LazyTransform<StaticTraceIt, const std::vector<Ref<const MemoryAccess>>&>{
+		rest_of_static_trace,
+		static_trace.end(),
+		[&](const BoiledDownFunction& bdf) { return bdf.all_block_conflicts(block); }
+	};
 }
 */
 
 /*
 Algorithm 5: Is ownership beneficial?
 */
-static bool ownership_beneficial(const MemoryAccess& X) { return false; }
+static bool ownership_beneficial(const MemoryAccess& X) {
+	return false;
+}
 	/*
-static bool ownership_beneficial(const digraph<std::reference_wrapper<const BoiledDownFunction>>& bdf_dfg, const BoiledDownFunction& root) {
-	for (auto bdf_it = bfs_iterator{bdf_dfg, root}; it != bfs_iterator{}; ++it) {
+static bool ownership_beneficial(const Digraph<std::reference_wrapper<const BoiledDownFunction>>& bdf_dfg, const BoiledDownFunction& root) {
+	for (auto bdf_it = BfsIt{bdf_dfg, root}; it != BfsIt{}; ++it) {
 		const auto& bdf = *bdf_it;
 		for (auto X_it = bdf.accesses_in_order.begin(); X_it != bdf.accesses_in_order.end(); ++X_it) {
 			// Is ownership beneficial for X?
@@ -201,7 +235,7 @@ static bool ownership_beneficial(const digraph<std::reference_wrapper<const Boil
 			for (auto Y_it = X_it+1; Y_it != bdf.accesses_in_order.end(); ++Y_it) {
 				
 			}
-			for (auto jt = it; jt != bfs_iterator{}; ++jt) {
+			for (auto jt = it; jt != BfsIt{}; ++jt) {
 
 			}
 		}

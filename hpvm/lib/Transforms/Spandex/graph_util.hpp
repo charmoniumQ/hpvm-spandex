@@ -12,15 +12,15 @@ Utilities for generic digraphs, described as
 */
 
 template <typename Node, typename Hash = std::hash<typename std::remove_const<typename remove_reference_wrapper<Node>::type>::type>>
-using adj_list = std::unordered_set<Node, Hash>;
+using AdjList = std::unordered_set<Node, Hash>;
 
 template <typename Node, typename Hash = std::hash<typename std::remove_const<typename remove_reference_wrapper<Node>::type>::type>>
-using digraph = std::unordered_map<Node, adj_list<Node, Hash>, Hash>;
+using Digraph = std::unordered_map<Node, AdjList<Node, Hash>, Hash>;
 
 template <typename Node>
 void for_each_adj_list(
-    const digraph<Node> &digraph_,
-    std::function<void(const Node &, const adj_list<Node> &)> fn) {
+    const Digraph<Node> &digraph_,
+    std::function<void(const Node &, const AdjList<Node> &)> fn) {
   for (const auto &node_successors : digraph_) {
     const Node &src = node_successors.first;
     const std::unordered_set<Node> &dsts = node_successors.second;
@@ -29,10 +29,10 @@ void for_each_adj_list(
 }
 
 template <typename Node>
-void for_each_adj(const digraph<Node> &digraph_,
+void for_each_adj(const Digraph<Node> &digraph_,
                   std::function<void(const Node &, const Node &)> fn) {
   for_each_adj_list<Node>(digraph_,
-                          [&](const Node &src, const adj_list<Node> &dsts) {
+                          [&](const Node &src, const AdjList<Node> &dsts) {
                             for (const Node &dst : dsts) {
                               fn(src, dst);
                             }
@@ -40,9 +40,9 @@ void for_each_adj(const digraph<Node> &digraph_,
 }
 
 template <typename Node>
-std::unordered_set<Node> get_nodes(const digraph<Node> &digraph_) {
+std::unordered_set<Node> get_nodes(const Digraph<Node> &digraph_) {
   std::unordered_set<Node> nodes;
-  for_each_adj_list<Node>(digraph_, [&](const Node &src, adj_list<Node> dsts) {
+  for_each_adj_list<Node>(digraph_, [&](const Node &src, AdjList<Node> dsts) {
     nodes.insert(src);
     for (const Node &dst : dsts) {
       nodes.insert(dst);
@@ -51,25 +51,25 @@ std::unordered_set<Node> get_nodes(const digraph<Node> &digraph_) {
   return nodes;
 }
 
-template <typename Node> digraph<Node> invert(const digraph<Node> &digraph_) {
-  digraph<Node> inverse;
+template <typename Node> Digraph<Node> invert(const Digraph<Node> &digraph_) {
+  Digraph<Node> inverse;
   for_each_adj<Node>(digraph_, [&](const Node &src, const Node &dst) {
     inverse[dst].insert(src);
   });
   return inverse;
 }
 
-template <typename Node> class bfs_iterator
+template <typename Node> class BfsIt
   // Iterator traits - typedefs and types required to be STL compliant
 	: public std::iterator<std::input_iterator_tag, Node, size_t, const Node*, const Node&>
 {
 public:
-  bfs_iterator() {}
+  BfsIt() {}
 
-  bfs_iterator(const digraph<Node> &digraph_, Node src)
+  BfsIt(const Digraph<Node> &digraph_, Node src)
       : _digraph{digraph_}, cur{std::make_optional<Node>(src)} {}
 
-	bool empty() const { return cur.has_value(); }
+	bool empty() const { return !cur.has_value(); }
 	const Node &operator*() const {
     assert(!empty() && "Accessed a completed iterator");
     return *cur;
@@ -80,7 +80,7 @@ public:
   }
 	const Node *operator->() const { return **this; }
   Node *operator->() { return **this; }
-  bfs_iterator &operator++() {
+  BfsIt &operator++() {
     // only works in acyclic graph
     assert(!empty() && "Incremented a completed iterator");
 	i++;
@@ -97,36 +97,36 @@ public:
     }
     return *this;
   }
-  bfs_iterator operator++(int) {
-    bfs_iterator other = *this;
+  BfsIt operator++(int) {
+    BfsIt other = *this;
     ++*this;
     return other;
   }
-  bool operator==(const bfs_iterator &other) const {
+  bool operator==(const BfsIt &other) const {
 	  if (empty() || other.empty()) {
 		  return empty() && other.empty();
 	  } else {
 		  return i == other.i && _digraph == other._digraph;
 	  }
   }
-  bool operator!=(const bfs_iterator &other) const { return !(*this == other); }
+  bool operator!=(const BfsIt &other) const { return !(*this == other); }
 
 private:
 	size_t i = 0;
-  const digraph<Node> _digraph;
+  const Digraph<Node> _digraph;
 	std::optional<Node> cur;
   std::deque<Node> lst;
 };
 
 /*
- * TODO: replace this with bfs_iterator
- * For some generic-type-related reason, bfs_iterator does not work with
+ * TODO: replace this with BfsIt
+ * For some generic-type-related reason, BfsIt does not work with
  * std::find
  */
 template <typename Node>
-std::vector<Node> bfs(const digraph<Node> &digraph_, Node src) {
+std::vector<Node> bfs(const Digraph<Node> &digraph_, Node src) {
 	std::vector<Node> ret;
-  for (bfs_iterator<Node> it{digraph_, src}; !it.empty(); ++it) {
+  for (BfsIt<Node> it{digraph_, src}; !it.empty(); ++it) {
     // LLVM_DEBUG(dbgs() << src << " -> ... -> " << *it << "\n");
     ret.push_back(*it);
   }
@@ -134,17 +134,17 @@ std::vector<Node> bfs(const digraph<Node> &digraph_, Node src) {
 }
 
 template <typename Node>
-bool is_descendant(const digraph<Node> &digraph_, Node n1, Node n2) {
-	return std::find(bfs_iterator<Node>{digraph_, n1}, bfs_iterator<Node>{}, n2) !=
-	  bfs_iterator<Node>{};
+bool is_descendant(const Digraph<Node> &digraph_, Node n1, Node n2) {
+	return std::find(BfsIt<Node>{digraph_, n1}, BfsIt<Node>{}, n2) !=
+	  BfsIt<Node>{};
 }
 
 template <typename Node1, typename Node2>
-digraph<Node2> map_graph(const digraph<Node1> &inp,
+Digraph<Node2> map_graph(const Digraph<Node1> &inp,
                          std::function<Node2(const Node1 &)> fn) {
-  digraph<Node2> out;
+  Digraph<Node2> out;
 
-  for_each_adj_list<Node1>(inp, [&](const Node1 &src1, const adj_list<Node1>& dst1s) {
+  for_each_adj_list<Node1>(inp, [&](const Node1 &src1, const AdjList<Node1>& dst1s) {
     Node2 src2 = fn(src1);
     for (const Node1 &dst1 : dst1s) {
       Node2 dst2 = fn(dst1);
@@ -156,10 +156,10 @@ digraph<Node2> map_graph(const digraph<Node1> &inp,
 }
 
 template <typename Node>
-void delete_node(digraph<Node> &graph, digraph<Node> &inverse_graph,
+void delete_node(Digraph<Node> &graph, Digraph<Node> &inverse_graph,
                  const Node &node) {
-  adj_list<Node> predecessors = inverse_graph[node];
-  adj_list<Node> successors = graph[node];
+  AdjList<Node> predecessors = inverse_graph[node];
+  AdjList<Node> successors = graph[node];
 
   // dbgs() << "Deleting " << node << "{\n";
   // for (const Node& predecessor : predecessors) {
@@ -222,8 +222,8 @@ void delete_node(digraph<Node> &graph, digraph<Node> &inverse_graph,
 }
 
 template <typename Node>
-void delete_nodes(digraph<Node> &graph, std::function<bool(const Node &)> fn) {
-	digraph<Node> inverse_graph = invert<Node>(graph);
+void delete_nodes(Digraph<Node> &graph, std::function<bool(const Node &)> fn) {
+	Digraph<Node> inverse_graph = invert<Node>(graph);
 	for (const Node &node : get_nodes<Node>(graph)) {
     if (fn(node)) {
       delete_node(graph, inverse_graph, node);
@@ -233,7 +233,7 @@ void delete_nodes(digraph<Node> &graph, std::function<bool(const Node &)> fn) {
 
 template <typename Node>
 llvm::raw_ostream &dump_graphviz(llvm::raw_ostream &os,
-                                 const digraph<Node> &digraph_) {
+                                 const Digraph<Node> &digraph_) {
   os << "strict digraph {\n";
 
   std::unordered_set<DFNode const *> nodes;
