@@ -65,28 +65,7 @@ public:
         Digraph<Port> mem_comm_dfg = get_mem_comm_dfg(leaf_dfg, coarse_leaf_dfg);
         DUMP_GRAPHVIZ_PORT_PTRS(mem_comm_dfg);
 
-        for_each_adj_list<Port>(
-            mem_comm_dfg,
-            [&](const Port &producer, const AdjList<Port> &consumers) {
-              if (consumers.size() > 1) {
-                errs() << "Spandex pass only works when there is one or fewer consumers.\n";
-				abort();
-              }
-              if (consumers.size() == 1) {
-                const Port &consumer = *consumers.cbegin();
-                assert(producer.N.getFuncPointer());
-                assert(consumer.N.getFuncPointer());
-
-				const auto& producer_arg = ptr2ref<Argument>(producer.N.getFuncPointer()->arg_begin() + producer.pos);
-				const auto& consumer_arg = ptr2ref<Argument>(consumer.N.getFuncPointer()->arg_begin() + consumer.pos);
-
-				auto& producer_fn = ptr2ref<Function>(producer.N.getFuncPointer());
-				auto& consumer_fn = ptr2ref<Function>(consumer.N.getFuncPointer());
-
-				assign_request_types(module, producer_fn, producer_arg, false, hpvm::CPU_TARGET, true, thisp);
-				assign_request_types(module, consumer_fn, consumer_arg, true, hpvm::CPU_TARGET, true, thisp);
-              }
-            });
+		spandex_annotate(module, mem_comm_dfg);
       }
     }
 	// No DFG. Nothing for us to do;

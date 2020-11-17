@@ -63,9 +63,15 @@ if [ ! -f "${BUILD_DIR}/build.ninja" ]; then
 	# For building natively on dholak:
 	# cmake_args="${cmake_args} -D PYTHON_EXECUTABLE:FILEPATH=$(which python3)"
 
-	cd build
- 	cmake -S "../${LLVM_SRC}" -B "${BUILD_DIR}" -G Ninja -D LLVM_TARGETS_TO_BUILD="X86" -D CMAKE_INSTALL_PREFIX="${INSTALL_DIR}" ${cmake_args}
-	cd ..
+	cmake \
+		-S "${LLVM_SRC}" \
+		-B "${BUILD_DIR}" \
+		-G Ninja \
+		-D LLVM_TARGETS_TO_BUILD="X86" \
+		-D CMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
+		-D CMAKE_EXE_LINKER_FLAGS="-fuse-ld=gold" \
+		-D CMAKE_SHARED_LINKER_FLAGS="-fuse-ld=gold" \
+		${cmake_args}
 fi
 
 #make -j "${NUM_THREADS}" -C "${BUILD_DIR}"

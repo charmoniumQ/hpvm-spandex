@@ -15,6 +15,13 @@ struct Port {
   }
 };
 
+struct Core {
+	hpvm::Target target;
+	unsigned int id;
+	bool operator==(const Core& other) const { return target == other.target && id == other.id; }
+	bool operator!=(const Core& other) const { return !(*this == other); }
+};
+
 namespace std {
 template <> struct hash<Port> {
   size_t operator()(const Port &p) const {
@@ -87,13 +94,18 @@ Digraph<Port> get_leaf_dfg(const Digraph<Port>& dfg) {
 }
 
 Digraph<Ref<llvm::DFNode>> get_coarse_leaf_dfg(const Digraph<Port>& leaf_dfg) {
-	return map_graph<Port, Ref<llvm::DFNode>>(leaf_dfg, [](const Port &port) { return std::cref(port.N); });
+	return map_graph<
+		Port,
+		Ref<llvm::DFNode>,
+		Digraph<Port>,
+		Digraph<Ref<llvm::DFNode>>
+	>(leaf_dfg, [](const Port &port) { return std::cref(port.N); });
 }
 
 Digraph<Port> get_mem_comm_dfg(const Digraph<Port> &dfg,
                                const Digraph<Ref<llvm::DFNode>> &coarse_dfg) {
   Digraph<Port> result;
-  for_each_adj_list<Port>(dfg, [&](const Port &src, const AdjList<Port> dsts) {
+  for_each_adj_list<Port, Digraph<Port>, AdjList<Port>>(dfg, [&](const Port &src, const AdjList<Port>& dsts) {
     if (dsts.size() > 1 && dsts.cbegin()->get_type().isPointerTy()) {
       for (const Port &dst1 : dsts) {
         for (const Port &dst2 : dsts) {
@@ -119,15 +131,14 @@ llvm::raw_ostream &dump_graphviz_ports(llvm::raw_ostream &os, const Digraph<Port
 
   os << "\tnode [shape=record];\n";
 
-  std::unordered_set<const llvm::DFNode *> dfnodes;
+  std::unordered_set<Ref<llvm::DFNode>, std::hash<llvm::DFNode>> dfnodes;
   for_each_adj<Port>(dfg, [&](const Port &src, const Port &dst) {
     // omit port info
-    dfnodes.insert(&src.N);
-    dfnodes.insert(&dst.N);
+    dfnodes.insert(src.N);
+    dfnodes.insert(dst.N);
   });
 
-  for (const llvm::DFNode* _node : dfnodes) {
-	  const auto& node = ptr2ref<llvm::DFNode>(_node);
+  for (const llvm::DFNode& node : dfnodes) {
     os << "\t"
        << "\"" << node << "\" "
        << "["

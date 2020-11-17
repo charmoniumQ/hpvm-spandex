@@ -35,7 +35,7 @@ llvm_to_str(T& obj) {
 }
 
 static llvm::Value&
-const_int(llvm::LLVMContext& context, size_t val = 0, unsigned width = 8, bool is_signed = false) {
+const_int(llvm::LLVMContext& context, size_t val = 0, unsigned width = 64, bool is_signed = false) {
 	const auto& type = llvm::IntegerType::get(context, width);
 	return ptr2ref<llvm::Value>(llvm::ConstantInt::get(type, val, is_signed));
 }
@@ -81,6 +81,8 @@ static bool is_memory_access(const llvm::Instruction& instruction) {
 	return get_pointer_target(instruction).isOk();
 }
 
+#define DEBUG(expr) std::cerr << __FILE__ ":" << __LINE__ << ": " #expr ": " << expr << std::endl;
+
 static ResultStr<std::pair<const llvm::Value*, const llvm::Value*>>
 split_pointer(const llvm::DataLayout& data_layout, const llvm::Value& pointer) {
 	using binops = llvm::Instruction::BinaryOps;
@@ -89,9 +91,12 @@ split_pointer(const llvm::DataLayout& data_layout, const llvm::Value& pointer) {
 
 	if (llvm::isa<llvm::Argument>(&pointer)) {
 		return Ok(pair(&pointer, &const_int(context)));
+	} else if (llvm::isa<llvm::CallBase>(&pointer)) {
+		return Ok(pair(&pointer, &const_int(context)));
 	} else if (const auto* _gep = llvm::dyn_cast<llvm::GetElementPtrInst>(&pointer)) {
 		const auto& gep = ptr2ref<llvm::GetElementPtrInst>(_gep);
 		llvm::Value* offset = &const_int(context);
+
 		llvm::Type* type = gep.getPointerOperandType();
 		for (const auto& use : gep.indices()) {
 			assert(offset);
@@ -131,10 +136,13 @@ statically_evaluate(const llvm::Value& value) {
 	 */
 
 	const llvm::Type& type = ptr2ref<llvm::Type>(value.getType());
-	assert(type.isIntegerTy());
+	if (!type.isIntegerTy()) {
+		return Err(str{"'"} + llvm_to_str(value) + str{"' is of type '"} + llvm_to_str(type) + str{"' (non-integral), not u64"});
+	}
 	const llvm::IntegerType& int_type = ptr2ref<llvm::IntegerType>(llvm::dyn_cast<llvm::IntegerType>(&type));
-	assert(int_type.getBitWidth() == sizeof(uint64_t) * 8);
-	assert(!int_type.getSignBit());
+	if (int_type.getBitWidth() > sizeof(uint64_t) * 8) {
+		return Err(str{"'"} + llvm_to_str(value) + str{"' is of type '"} + llvm_to_str(type) + str{"', not u64 (too large bitwidth)"});
+	}
 
 	if (const auto* constant_int = llvm::dyn_cast<llvm::ConstantInt>(&value)) {
 		return Ok(constant_int->getZExtValue());
@@ -172,6 +180,9 @@ public:
 	unsigned short block_size;
 	bool operator==(const Segment& other) const { return &base == &other.base; }
 	bool operator!=(const Segment& other) const { return !(*this == other); }
+	Segment rebase(const llvm::Value& new_base) const {
+		return Segment{new_base, block_size};
+	}
 };
 
 class Block {
@@ -191,6 +202,9 @@ public:
 	Block operator-(int i) const {
 		return *this + (-i);
 	}
+	Block rebase(const llvm::Value& new_base) const {
+		return Block{segment.rebase(new_base), block_index};
+	}
 };
 
 class Address {
@@ -199,7 +213,7 @@ public:
 		: block{_block}
 	{ }
 	Block block;
-	unsigned int block_offset;
+	unsigned short block_offset;
 	bool aligned(unsigned short alignment) const {
 		assert(block.segment.block_size % alignment == 0);
 		return block_offset % alignment == 0;
@@ -224,14 +238,19 @@ public:
 		 - result of malloc
 		 - reference to static data
 		*/
-		if (!llvm::isa<llvm::Argument>(&base)) {
-			return Err(str{"Base pointer '"} + llvm_to_str(base) + str{"' is not the start of a segment"});
-		} else {
+		if (llvm::isa<llvm::Argument>(&base)) {
 			size_t offset = TRY(statically_evaluate<size_t>(*base_x_offset.second));
 			unsigned int block_index = offset / block_size;
 			unsigned short block_offset = offset % block_size;
 			return Ok(Address{Block{Segment{base, block_size}, block_index}, block_offset});
+		} else if (llvm::isa<llvm::CallBase>(&base)) {
+			return Err(str{"Base pointer '"} + llvm_to_str(base) + str{"' is a callbase which has not yet been implemented"});
+		} else {
+			return Err(str{"Base pointer '"} + llvm_to_str(base) + str{"' is not the start of a segment"});
 		}
+	}
+	Address rebase(const llvm::Value& new_base) const {
+		return Address{block.rebase(new_base), block_offset};
 	}
 };
 
