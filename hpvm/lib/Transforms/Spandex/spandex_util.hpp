@@ -15,6 +15,7 @@ using WordMask = std::bitset<LINE_SIZE / WORD_SIZE>;
 
 class HardwareParams {
 public:
+	HardwareParams() = delete;
 	bool producer;
 	bool owner_pred_available;
 	unsigned int cache_size;
@@ -26,15 +27,16 @@ class BoiledDownFunction;
 
 class MemoryAccess {
 public:
+	MemoryAccess() = delete;
 	const llvm::Instruction& instruction;
-	const AccessKind kind;
-	const Address address;
+	AccessKind kind;
+	Address address;
 	const BoiledDownFunction& bdf;
-	const unsigned order;
+	unsigned order;
 	Req req_type;
 	WordMask word_mask;
 private:
-	MemoryAccess(const llvm::Instruction& _instruction, AccessKind _kind, const Address& _address, const BoiledDownFunction& _bdf, unsigned _order)
+	MemoryAccess(const llvm::Instruction& _instruction, AccessKind _kind, Address _address, const BoiledDownFunction& _bdf, unsigned _order)
 		: instruction{_instruction}
 		, kind{_kind}
 		, address{_address}
@@ -46,8 +48,8 @@ private:
 public:
 	static ResultStr<MemoryAccess>
 	create(const llvm::DataLayout& data_layout, const llvm::Instruction& instruction, const HardwareParams& hw_params, const BoiledDownFunction& bdf, unsigned order) {
-		const auto& [pointer, kind] = TRY(get_pointer_target(instruction));
-		const auto& address = TRY(Address::create(data_layout, *pointer, hw_params.block_size));
+		auto [pointer, kind] = TRY(get_pointer_target(instruction));
+		Address address = TRY(Address::create(data_layout, pointer.get(), hw_params.block_size));
 		return Ok(MemoryAccess{instruction, kind, address, bdf, order});
 	}
 	float criticality_weight() const;
@@ -69,8 +71,8 @@ bool iterator_in_range(const Iterator it, const Range range, bool not_end = fals
 class BoiledDownFunction {
 private:
 	std::vector<MemoryAccess> accesses;
-	std::unordered_map<Address, std::vector<Ref<const MemoryAccess>>> accesses_to_loc;
-	std::unordered_map<Block, std::vector<Ref<const MemoryAccess>>> accesses_to_block;
+	std::unordered_map<Address, std::vector<Ref<MemoryAccess>>> accesses_to_loc;
+	std::unordered_map<Block, std::vector<Ref<MemoryAccess>>> accesses_to_block;
 	const HardwareParams& hw_params;
 	const llvm::Function& function;
 	BoiledDownFunction(const HardwareParams& _hw_params, const llvm::Function& _function)
@@ -88,18 +90,28 @@ public:
 			for (const llvm::Instruction& instruction : basic_block) {
 				if (is_memory_access(instruction)) {
 					{
-						const MemoryAccess access = TRY(MemoryAccess::create(data_layout, instruction, hw_params, bdf, bdf.accesses.size()));
+						MemoryAccess access = TRY(MemoryAccess::create(data_layout, instruction, hw_params, bdf, bdf.accesses.size()));
 						if (access.kind == +AccessKind::rmw || access.kind == +AccessKind::cas) {
-							Err(str{"Spandex pass does not support atomics yet."});
+							return Err(str{"Spandex pass does not support atomics yet."});
 						}
 						bdf.accesses.push_back(access);
 					}
 
-					const auto& access_ref = bdf.accesses.back();
-					bdf.accesses_to_loc  [access_ref.address      ].push_back(access_ref);
-					bdf.accesses_to_block[access_ref.address.block].push_back(access_ref);
+					const MemoryAccess& access_ref = bdf.accesses.back();
+					bdf.accesses_to_loc  [access_ref.address      ].emplace_back(std::cref(access_ref));
+					bdf.accesses_to_block[access_ref.address.block].emplace_back(std::cref(access_ref));
 				}
 			}
+					std::cerr << "{\n";
+		for (const auto& loc_x_accesses : bdf.accesses_to_loc) {
+			std::cerr << "    " << loc_x_accesses.first << ": [\n";
+			for (const auto& access : loc_x_accesses.second) {
+				std::cerr << "        " << access.get().address << ",\n";
+			}
+			std::cerr << "    ],\n";
+		}
+		std::cerr << "}\n";
+		std::cerr.flush();
 			return Ok(bdf);
 		}
 	}
@@ -116,10 +128,20 @@ public:
 			}
 		}
 	}
-	const std::vector<Ref<const MemoryAccess>>& all_loc_conflicts(const Address& address) const {
+	const std::vector<Ref<MemoryAccess>>& all_loc_conflicts(const Address& address) const {
+		std::cerr << "{\n";
+		for (const auto& loc_x_accesses : accesses_to_loc) {
+			std::cerr << "    " << loc_x_accesses.first << ": [\n";
+			for (const auto& access : loc_x_accesses.second) {
+				std::cerr << "        " << access.get().address << ",\n";
+			}
+			std::cerr << "    ],\n";
+		}
+		std::cerr << "}\n";
+		std::cerr.flush();
 		return const_cast<BoiledDownFunction&>(*this).accesses_to_loc[address];
 	}
-	const std::vector<Ref<const MemoryAccess>>& all_block_conflicts(const Block& block) const {
+	const std::vector<Ref<MemoryAccess>>& all_block_conflicts(const Block& block) const {
 		return const_cast<BoiledDownFunction&>(*this).accesses_to_block[block];
 	}
 	/*
@@ -207,6 +229,8 @@ bool reuse_possible(
 	return cache.size() < begin.bdf.get_hw_params().cache_size * 0.75;
 }
 
+#define DEBUG(expr) std::cerr << __FILE__ ":" << __LINE__ << ": " #expr ": " << expr << std::endl;
+
 /*
 Algorithm 5: Is ownership beneficial?
 */
@@ -216,6 +240,7 @@ static bool ownership_beneficial(const BdfDfg& dfg, const MemoryAccess& X) {
 
 	// Everything in the same BDF is not sync seperated and same core
 	// Therefore the algoirhtm simply sets Y_prev to the last conflicting access in the same BDF
+	DEBUG(X.address);
 	const MemoryAccess* Y_prev = &(X.bdf.all_loc_conflicts(X.address).end() - 1)->get();
 
 	for (auto [bdf, arg_no] : get_static_trace(dfg, X)) {
@@ -311,7 +336,7 @@ static bool owner_pred_beneficial(const BdfDfg& dfg, const MemoryAccess& X) {
 		}
 
 		while (Y != conflicts->cbegin()) {
-			const auto Y_prev = Y - 1;
+			auto Y_prev = Y - 1;
 			if (X.bdf.get_core() == Y->get().bdf.get_core() && X.kind == Y->get().kind) {
 				phase--;
 				if (phase < 0) {
@@ -420,7 +445,13 @@ static std::pair<WordMask, Req> select_granularity(const MemoryAccess& X) {
  static void spandex_annotate(const llvm::Module& module, const Digraph<Port>& mem_comm_dfg) {
 	std::vector<BoiledDownFunction> bdfs;
 	llvm::DataLayout data_layout {&module};
-	HardwareParams hp;
+	HardwareParams hp {
+					   .producer = false,
+					   .owner_pred_available = false,
+					   .cache_size = 1024*1024,
+					   .block_size = 64,
+					   .core = {hpvm::CPU_TARGET, 0},
+	};
 	BdfDfg bdf_mem_comm_dfg = map_graph<Port, BdfDfgNode, Digraph<Port>, BdfDfg>(mem_comm_dfg, [&](const Port& port) {
 		{
 			const auto& function = ptr2ref<llvm::Function>(port.N.getFuncPointer());

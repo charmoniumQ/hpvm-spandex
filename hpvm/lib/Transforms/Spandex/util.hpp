@@ -18,8 +18,7 @@ using ResultStr = Result<T, str>;
         if (!res.isOk()) {                                         \
             return Err<str>(str{__FILE__ ":"} + std::to_string(__LINE__) + str{"\n    " #result_expr "\n"} + res.unwrapErr()); \
         }                                                          \
-        typedef details::ResultOkType<decltype(res)>::type T;      \
-        res.storage().get<T>();                                    \
+        res.unwrap();                                              \
     })
 
 

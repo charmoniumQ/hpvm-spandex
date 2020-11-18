@@ -20,6 +20,11 @@ set -e -x
 #
 #     $ env forward_x11=yes /path/to/docker.sh
 
+# By default, the docker container has a user with the same UID, GID,
+# username, and groupname as the host-user. This is useful so that the
+# container-user and host-user have the same permission-level inside
+# shared volumes.
+
 ###############################################################################
 # Inputs
 ###############################################################################
@@ -70,6 +75,10 @@ mounts="${mounts:-}"
 # Defaults to "Dockerfile" if that file is present else no further dockerfile is applied.
 dockerfile_in="${dockerfile:-}"
 
+# The dockerfile commands to apply after everythign else
+# Defaults to nothing
+dockerfile_post_cmds="${dockerfile_post_cmds:-}"
+
 # Output for the resulting dockerfile
 # No output is generated if this is unset
 dockerfile_out="${dockerfile_out:-$(mktemp)}"
@@ -80,6 +89,10 @@ docker_run_args="${docker_run_args:-}"
 # Command to run after upping, if any
 command="${command:-}"
 
+# The actual value of this variable is arbitrary.
+# However, changes in this value can be used to invalidate the cache.
+touch="${touch:-}"
+
 ###############################################################################
 # Building
 ###############################################################################
@@ -88,6 +101,8 @@ if [ "${os_type}" = "debian" ]
 then
 	cat <<EOF > "${dockerfile_out}"
 FROM ${os}:${os_tag}
+
+RUN echo ${touch}
 
 # I am putting the packages necessary for adding other packages here.
 # Without these, other packages could not be immediately installed by the user.
@@ -187,6 +202,11 @@ fi
 if [ ! -z "${dockerfile_in}" ]
 then
    cat "${dockerfile_in}" >> "${dockerfile_out}"
+fi
+
+if [ -n "${dockerfile_post_cmds}" ]
+then
+	echo "${dockerfile_post_cmds}" >> "${dockerfile_out}"
 fi
 
 docker build --tag="${image_out}" --file="${dockerfile_out}" "${context}"

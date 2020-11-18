@@ -61,17 +61,17 @@ types::Ok<pair<std::reference_wrapper<const not_copyable>, int> >
 
 Therefore, I will use raw pointers
  */
-static ResultStr<std::pair<const llvm::Value*, AccessKind>>
+static ResultStr<std::pair<Ref<llvm::Value>, AccessKind>>
 get_pointer_target(const llvm::Instruction& instruction) {
-	auto pair = std::make_pair<const llvm::Value*, AccessKind>;
+	using pair = std::pair<Ref<llvm::Value>, AccessKind>;
 	if (const auto* store_inst = llvm::dyn_cast<llvm::StoreInst>(&instruction)) {
-		return Ok(pair(store_inst->getPointerOperand(), AccessKind::store));
+		return Ok(pair(ptr2ref<llvm::Value>(store_inst->getPointerOperand()), AccessKind::store));
 	} else if (const auto* load_inst = llvm::dyn_cast<llvm::LoadInst>(&instruction)) {
-		return Ok(pair(load_inst->getPointerOperand(), AccessKind::load));
+		return Ok(pair(ptr2ref<llvm::Value>(load_inst->getPointerOperand()), AccessKind::load));
 	} else if (const auto* cas_inst = llvm::dyn_cast<llvm::AtomicCmpXchgInst>(&instruction)) {
-		return Ok(pair(cas_inst->getPointerOperand(), AccessKind::cas));
+		return Ok(pair(ptr2ref<llvm::Value>(cas_inst->getPointerOperand()), AccessKind::cas));
 	} else if (const auto* rmw_inst = llvm::dyn_cast<llvm::AtomicRMWInst>(&instruction)) {
-		return Ok(pair(rmw_inst->getPointerOperand(), AccessKind::rmw));
+		return Ok(pair(ptr2ref<llvm::Value>(rmw_inst->getPointerOperand()), AccessKind::rmw));
 	} else {
 		return Err(str{"Instruction "} + llvm_to_str(instruction) + str{" is not a memory access"});
 	}
@@ -170,14 +170,18 @@ statically_evaluate(const llvm::Value& value) {
 	}
 }
 
+class Address;
 class Segment {
-public:
+private:
+	friend class Address;
 	Segment(const llvm::Value& _base, unsigned short _block_size)
 		: base{_base}
 		, block_size{_block_size}
 	{ }
+public:
+	Segment() = delete;
 	const llvm::Value& base;
-	unsigned short block_size;
+	unsigned short block_size = 0;
 	bool operator==(const Segment& other) const { return &base == &other.base; }
 	bool operator!=(const Segment& other) const { return !(*this == other); }
 	Segment rebase(const llvm::Value& new_base) const {
@@ -185,14 +189,18 @@ public:
 	}
 };
 
+class Address;
 class Block {
-public:
+private:
+	friend class Address;
 	Block(Segment _segment, unsigned int _block_index)
 		: segment{_segment}
 		, block_index{_block_index}
 	{ }
+public:
+	Block() = delete;
 	Segment segment;
-	unsigned int block_index;
+	unsigned int block_index = 0;
 	bool operator==(const Block& other) const { return segment == other.segment && block_index == other.block_index; }
 	bool operator!=(const Block& other) const { return !(*this == other); }
 	Block operator+(int i) const {
@@ -208,12 +216,15 @@ public:
 };
 
 class Address {
-public:
+private:
 	Address(Block _block, unsigned short _block_offset)
 		: block{_block}
+		, block_offset{_block_offset}
 	{ }
+public:
+	Address() = delete;
 	Block block;
-	unsigned short block_offset;
+	unsigned short block_offset = 0;
 	bool aligned(unsigned short alignment) const {
 		assert(block.segment.block_size % alignment == 0);
 		return block_offset % alignment == 0;
@@ -230,7 +241,7 @@ public:
 
 	static ResultStr<Address>
 	create(const llvm::DataLayout& data_layout, const llvm::Value& pointer, unsigned short block_size) {
-		const auto base_x_offset = TRY(split_pointer(data_layout, pointer));
+		auto base_x_offset = TRY(split_pointer(data_layout, pointer));
 		const auto& base = *base_x_offset.first;
 
 		/*
@@ -238,10 +249,14 @@ public:
 		 - result of malloc
 		 - reference to static data
 		*/
+		std::cerr << block_size << std::endl;
 		if (llvm::isa<llvm::Argument>(&base)) {
 			size_t offset = TRY(statically_evaluate<size_t>(*base_x_offset.second));
+		std::cerr << offset << std::endl;
 			unsigned int block_index = offset / block_size;
+		std::cerr << block_index << std::endl;
 			unsigned short block_offset = offset % block_size;
+		std::cerr << block_offset << std::endl;
 			return Ok(Address{Block{Segment{base, block_size}, block_index}, block_offset});
 		} else if (llvm::isa<llvm::CallBase>(&base)) {
 			return Err(str{"Base pointer '"} + llvm_to_str(base) + str{"' is a callbase which has not yet been implemented"});
@@ -284,6 +299,21 @@ namespace std {
 	}
 	bool operator!=(const llvm::DFNode& a, const llvm::DFNode& b) {
 		return !(a == b);
+	}
+
+	std::ostream& operator<<(std::ostream& os, const Segment& segment) {
+		return os << "*(" << llvm_to_str(segment.base) << ")";
+	}
+
+	std::ostream& operator<<(std::ostream& os, const Block& block) {
+		return os << '(' << llvm_to_str(block.segment.base) << ")[" << block.block_index << "*" << block.segment.block_size << "]";
+	}
+
+	std::ostream& operator<<(std::ostream& os, const Address& address) {
+		os << address.block_offset << " ";
+		os << address.block.block_index << " ";
+		os << &address.block.segment.base << "\n";
+		return os << '(' << llvm_to_str(address.block.segment.base) << ")[" << address.block.block_index << "*" << address.block.segment.block_size << " + " << address.block_offset << "]";
 	}
 }
 
