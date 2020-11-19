@@ -5,6 +5,7 @@
 #include "enum.h"
 #pragma GCC diagnostic ignored "-Wpedantic"
 #include "result.h"
+#include "variant.hpp"
 
 using str = std::string;
 
@@ -32,7 +33,9 @@ T unwrap(ResultStr<T> result) {
 	}
 }
 
-str demangle(const std::string &input) {
+#define DEBUGF(expr) std::cerr << __FILE__ ":" << __LINE__ << ": " #expr ": " << expr << std::endl;
+
+str demangle(const str &input) {
   int status = -1;
   std::string real_input =
       input.substr(input.size() - 7) == std::string{"_cloned"}

@@ -34,17 +34,6 @@ llvm_to_str(T& obj) {
 	return os.str();
 }
 
-static llvm::Value&
-const_int(llvm::LLVMContext& context, size_t val = 0, unsigned width = 64, bool is_signed = false) {
-	const auto& type = llvm::IntegerType::get(context, width);
-	return ptr2ref<llvm::Value>(llvm::ConstantInt::get(type, val, is_signed));
-}
-
-static llvm::Value&
-binary_op(llvm::Instruction::BinaryOps op, llvm::Value& left, llvm::Value& right) {
-	return *llvm::BinaryOperator::Create(op, &left, &right);
-}
-
 BETTER_ENUM(AccessKind, char, load, store, rmw, cas)
 
 /*
@@ -81,28 +70,26 @@ static bool is_memory_access(const llvm::Instruction& instruction) {
 	return get_pointer_target(instruction).isOk();
 }
 
-#define DEBUG(expr) std::cerr << __FILE__ ":" << __LINE__ << ": " #expr ": " << expr << std::endl;
+typedef nonstd::variant<const llvm::Value*, size_t> ValueOrConst;
+typedef std::vector<std::pair<ValueOrConst, size_t>> GEPList;
 
-static ResultStr<std::pair<const llvm::Value*, const llvm::Value*>>
+static ResultStr<std::pair<const llvm::Value*, GEPList>>
 split_pointer(const llvm::DataLayout& data_layout, const llvm::Value& pointer) {
-	using binops = llvm::Instruction::BinaryOps;
-	auto pair = std::make_pair<const llvm::Value*, const llvm::Value*>;
-	llvm::LLVMContext& context = pointer.getContext();
+	auto pair = std::make_pair<const llvm::Value*, GEPList>;
 
 	if (llvm::isa<llvm::Argument>(&pointer)) {
-		return Ok(pair(&pointer, &const_int(context)));
+		return Ok(pair(&pointer, GEPList{}));
 	} else if (llvm::isa<llvm::CallBase>(&pointer)) {
-		return Ok(pair(&pointer, &const_int(context)));
+		return Ok(pair(&pointer, GEPList{}));
 	} else if (const auto* _gep = llvm::dyn_cast<llvm::GetElementPtrInst>(&pointer)) {
 		const auto& gep = ptr2ref<llvm::GetElementPtrInst>(_gep);
-		llvm::Value* offset = &const_int(context);
+		GEPList gep_list;
 
 		llvm::Type* type = gep.getPointerOperandType();
 		for (const auto& use : gep.indices()) {
-			assert(offset);
 			assert(type && (type->isPointerTy() || type->isArrayTy()));
 			unsigned int type_size = data_layout.getIndexTypeSizeInBits(type);
-			offset = &binary_op(binops::Add, *offset, binary_op(binops::Mul, *use, const_int(context, type_size)));
+			gep_list.emplace_back(std::make_pair<ValueOrConst, size_t>(ValueOrConst{use}, type_size));
 			if (type->isArrayTy()) {
 				type = type->getArrayElementType();
 			} else if (type->isPointerTy()) {
@@ -111,7 +98,7 @@ split_pointer(const llvm::DataLayout& data_layout, const llvm::Value& pointer) {
 				return Err(str{"GEP '"} + llvm_to_str(gep) + str{" ' has an index on a non-pointer type '"} + llvm_to_str(*type) + str{"'"});
 			}
 		}
-		return Ok(pair(gep.getPointerOperand(), offset));
+		return Ok(pair(gep.getPointerOperand(), std::move(gep_list)));
 	} else {
 		return Err(str{"Unknown value type '"} + llvm_to_str(pointer) + str{"'"});
 	}
@@ -215,6 +202,22 @@ public:
 	}
 };
 
+ResultStr<size_t> evaluate_gep_list(GEPList gep_list) {
+	size_t result = 0;
+	for (const auto& [index, type_size] : gep_list) {
+		size_t index_eval = 0;
+		if (nonstd::holds_alternative<size_t>(index)) {
+			index_eval = nonstd::get<size_t>(index);
+		} else if (nonstd::holds_alternative<const llvm::Value*>(index)) {
+			index_eval = TRY(statically_evaluate<size_t>(*nonstd::get<const llvm::Value*>(index)));
+		} else {
+			return Err(std::string{"Unknown type "} + std::to_string(index.index()));
+		}
+		result += index_eval * type_size;
+	}
+	return Ok(result);
+}
+
 class Address {
 private:
 	Address(Block _block, unsigned short _block_offset)
@@ -249,14 +252,10 @@ public:
 		 - result of malloc
 		 - reference to static data
 		*/
-		std::cerr << block_size << std::endl;
 		if (llvm::isa<llvm::Argument>(&base)) {
-			size_t offset = TRY(statically_evaluate<size_t>(*base_x_offset.second));
-		std::cerr << offset << std::endl;
+			size_t offset = TRY(evaluate_gep_list(base_x_offset.second));
 			unsigned int block_index = offset / block_size;
-		std::cerr << block_index << std::endl;
 			unsigned short block_offset = offset % block_size;
-		std::cerr << block_offset << std::endl;
 			return Ok(Address{Block{Segment{base, block_size}, block_index}, block_offset});
 		} else if (llvm::isa<llvm::CallBase>(&base)) {
 			return Err(str{"Base pointer '"} + llvm_to_str(base) + str{"' is a callbase which has not yet been implemented"});

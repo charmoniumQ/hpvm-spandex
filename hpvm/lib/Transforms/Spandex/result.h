@@ -570,12 +570,12 @@ struct Storage {
     }
 
     template<typename U>
-    const U& get() const {
+    const U& get() const& {
         return *reinterpret_cast<const U *>(&storage_);
     }
 
     template<typename U>
-    U& get() {
+    U& get() & {
         return *reinterpret_cast<U *>(&storage_);
     }
 

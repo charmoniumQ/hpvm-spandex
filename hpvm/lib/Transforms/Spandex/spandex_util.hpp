@@ -5,6 +5,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm_util.hpp"
 
+#define NO_COMMIT(block) block
+
 BETTER_ENUM(SpandexRequestType, char, O_data, O, S, V, WTfwd, WTfwd_data, Vo, WTo, WTo_data, unassigned)
 
 using Req = SpandexRequestType;
@@ -80,39 +82,47 @@ private:
 		, function{_function}
 	{ }
 public:
-	static ResultStr<BoiledDownFunction>
-	create(const llvm::Function& function, const llvm::DataLayout& data_layout, const HardwareParams& hw_params) {
-		BoiledDownFunction bdf {hw_params, function};
+	BoiledDownFunction() = delete;
+	BoiledDownFunction& operator=(const BoiledDownFunction&) = delete;
+	BoiledDownFunction(const BoiledDownFunction&) = delete;
+	BoiledDownFunction& operator=(const BoiledDownFunction&&) = delete;
+	BoiledDownFunction(BoiledDownFunction&& other)
+		: accesses{std::move(other.accesses)}
+		, accesses_to_loc{std::move(other.accesses_to_loc)}
+		, accesses_to_block{std::move(other.accesses_to_block)}
+		, hw_params{other.hw_params}
+		, function{other.function}
+	{ }
+	
+	BoiledDownFunction(const llvm::Function& function, const llvm::DataLayout& data_layout, const HardwareParams& hw_params)
+		: BoiledDownFunction{hw_params, function}
+	{
 		if (&function.front() != &function.back()) {
-			return Err("Spandex pass supports straight-line code for now. Function is not straight-line:\n" + llvm_to_str_ndbg(function));
+			//return Err("Spandex pass supports straight-line code for now. Function is not straight-line:\n" + llvm_to_str_ndbg(function));
+			std::cerr << "Spandex pass supports straight-line code for now. Function is not straight-line:\n" + llvm_to_str_ndbg(function);
+			abort();
 		} else {
 			const llvm::BasicBlock& basic_block = function.getEntryBlock();
 			for (const llvm::Instruction& instruction : basic_block) {
 				if (is_memory_access(instruction)) {
-					{
-						MemoryAccess access = TRY(MemoryAccess::create(data_layout, instruction, hw_params, bdf, bdf.accesses.size()));
-						if (access.kind == +AccessKind::rmw || access.kind == +AccessKind::cas) {
-							return Err(str{"Spandex pass does not support atomics yet."});
-						}
-						bdf.accesses.push_back(access);
+					ResultStr<MemoryAccess> access = MemoryAccess::create(data_layout, instruction, hw_params, *this, this->accesses.size());
+					if (access.isErr()) {
+						std::cerr << access.unwrapErr() << std::endl;
+						abort();
+					} else if (access.unwrap().kind == +AccessKind::rmw || access.unwrap().kind == +AccessKind::cas) {
+						std::cerr << "Spandex pass does not support atomics yet.\n";
+						abort();
+						//return Err(str{"Spandex pass does not support atomics yet."});
+					} else {
+						this->accesses.push_back(access.unwrap());
 					}
-
-					const MemoryAccess& access_ref = bdf.accesses.back();
-					bdf.accesses_to_loc  [access_ref.address      ].emplace_back(std::cref(access_ref));
-					bdf.accesses_to_block[access_ref.address.block].emplace_back(std::cref(access_ref));
 				}
 			}
-					std::cerr << "{\n";
-		for (const auto& loc_x_accesses : bdf.accesses_to_loc) {
-			std::cerr << "    " << loc_x_accesses.first << ": [\n";
-			for (const auto& access : loc_x_accesses.second) {
-				std::cerr << "        " << access.get().address << ",\n";
+			for (const MemoryAccess& access : this->accesses) {
+				this->accesses_to_loc  [access.address      ].emplace_back(access);
+				this->accesses_to_block[access.address.block].emplace_back(access);
 			}
-			std::cerr << "    ],\n";
-		}
-		std::cerr << "}\n";
-		std::cerr.flush();
-			return Ok(bdf);
+			//return Ok(std::move(bdf));
 		}
 	}
 	void emulate_cache(std::unordered_set<Address>& cache, const MemoryAccess& begin, const MemoryAccess& end) const {
@@ -129,42 +139,34 @@ public:
 		}
 	}
 	const std::vector<Ref<MemoryAccess>>& all_loc_conflicts(const Address& address) const {
-		std::cerr << "{\n";
-		for (const auto& loc_x_accesses : accesses_to_loc) {
-			std::cerr << "    " << loc_x_accesses.first << ": [\n";
-			for (const auto& access : loc_x_accesses.second) {
-				std::cerr << "        " << access.get().address << ",\n";
-			}
-			std::cerr << "    ],\n";
-		}
-		std::cerr << "}\n";
-		std::cerr.flush();
 		return const_cast<BoiledDownFunction&>(*this).accesses_to_loc[address];
 	}
 	const std::vector<Ref<MemoryAccess>>& all_block_conflicts(const Block& block) const {
 		return const_cast<BoiledDownFunction&>(*this).accesses_to_block[block];
 	}
-	/*
-	WordMask intra_sync_load_reuse(const const_iterator& X) const {
-		assert(iterator_in_range(X, accesses));
+	WordMask intra_synch_load_reuse(const MemoryAccess& X) const {
 		WordMask mask;
 		std::unordered_set<Address> cache;
-		for (auto it = X; it != accesses.cend(); ++it) {
+		intra_synch_load_reuse(X, mask, cache);
+		return mask;
+	}
+	void intra_synch_load_reuse(const MemoryAccess& X, WordMask& mask, std::unordered_set<Address>& cache) const {
+		assert(&X.bdf == this);
+		auto accesses_to_block = all_block_conflicts(X.address.block);
+		auto it = std::find_if(accesses_to_block.cbegin(), accesses_to_block.cend(), curried_address_equality<MemoryAccess>(X));
+		assert(it != accesses_to_block.cend());
+		for (; it != accesses_to_block.cend(); ++it) {
 			// Assume access is to word
-			assert(it->address.aligned(WORD_SIZE));
-			for (unsigned short byte = 0; byte < WORD_SIZE; ++byte) {
-				cache.insert(it->address + byte);
-			}
+			assert(it->get().address.aligned(WORD_SIZE));
+			cache.insert(it->get().address);
 			if (cache.size() > 0.75 * hw_params.cache_size) {
 				break;
 			}
-			if (it->kind == +AccessKind::load && it->address.block == X->address.block){
-				mask.set(it->address.block_offset / WORD_SIZE);
+			if (it->get().kind == +AccessKind::load && it->get().address.block == X.address.block){
+				mask.set(it->get().address.block_offset / WORD_SIZE);
 			}
 		}
-		return mask;
 	}
-	*/
 	const std::vector<MemoryAccess>& get_all_accesses() const { return accesses; }
 	std::vector<MemoryAccess>& get_all_accesses() { return accesses; }
 	const llvm::Function& get_function() const { return function; }
@@ -229,8 +231,6 @@ bool reuse_possible(
 	return cache.size() < begin.bdf.get_hw_params().cache_size * 0.75;
 }
 
-#define DEBUG(expr) std::cerr << __FILE__ ":" << __LINE__ << ": " #expr ": " << expr << std::endl;
-
 /*
 Algorithm 5: Is ownership beneficial?
 */
@@ -240,7 +240,6 @@ static bool ownership_beneficial(const BdfDfg& dfg, const MemoryAccess& X) {
 
 	// Everything in the same BDF is not sync seperated and same core
 	// Therefore the algoirhtm simply sets Y_prev to the last conflicting access in the same BDF
-	DEBUG(X.address);
 	const MemoryAccess* Y_prev = &(X.bdf.all_loc_conflicts(X.address).end() - 1)->get();
 
 	for (auto [bdf, arg_no] : get_static_trace(dfg, X)) {
@@ -314,7 +313,7 @@ static bool shared_state_beneficial(const BdfDfg& dfg, const MemoryAccess& X) {
 /*
 Algorithm 7: Is owner-prediction beneficial?
 */
-static bool owner_pred_beneficial(const BdfDfg& dfg, const MemoryAccess& X) {
+static bool owner_pred_beneficial(const BdfDfg&, const BdfDfg& reverse_dfg, const MemoryAccess& X) {
 	char phase = 4;
 	float X_score = 0.0;
 	const auto* conflicts = &X.bdf.all_loc_conflicts(X.address);
@@ -322,7 +321,7 @@ static bool owner_pred_beneficial(const BdfDfg& dfg, const MemoryAccess& X) {
 	auto Y = X_prev;
 	bool first_time = true;
 
-	for (auto [bdf, arg_no] : get_static_trace(reverse<BdfDfgNode, BdfDfg>(dfg), X)) {
+	for (auto [bdf, arg_no] : get_static_trace(reverse_dfg, X)) {
 		const auto& function = bdf.get().get_function();
 		assert(arg_no < function.arg_size());
 		const auto& equiv_argument = ptr2ref<llvm::Argument>(function.arg_begin() + arg_no);
@@ -363,14 +362,7 @@ static WordMask requested_words_only(const MemoryAccess& X) {
 	return mask;
 }
 
-static WordMask intra_synch_load_reuse(const MemoryAccess& X) {
-	WordMask mask;
-	// TODO: do this
-	abort();
-	return mask;
-}
-
-static Req assign_request_type(const BdfDfg& dfg, const MemoryAccess& X) {
+static Req assign_request_type(const BdfDfg& dfg, const BdfDfg& reverse_dfg, const MemoryAccess& X) {
 	switch (X.kind) {
 	case +AccessKind::load: {
 		/*
@@ -380,7 +372,7 @@ static Req assign_request_type(const BdfDfg& dfg, const MemoryAccess& X) {
 			return Req::O_data;
 		} else if (shared_state_beneficial(dfg, X)) {
 			return Req::S;
-		} else if (owner_pred_beneficial(dfg, X)) {
+		} else if (owner_pred_beneficial(dfg, reverse_dfg, X)) {
 			return Req::Vo;
 		} else {
 			return Req::V;
@@ -392,7 +384,7 @@ static Req assign_request_type(const BdfDfg& dfg, const MemoryAccess& X) {
 		*/
 		if (ownership_beneficial(dfg, X)) {
 			return Req::O;
-		} else if (owner_pred_beneficial(dfg, X)) {
+		} else if (owner_pred_beneficial(dfg, reverse_dfg, X)) {
 			return Req::WTo;
 		} else {
 			return Req::WTfwd;
@@ -405,7 +397,7 @@ static Req assign_request_type(const BdfDfg& dfg, const MemoryAccess& X) {
 		*/
 		if (ownership_beneficial(dfg, X)) {
 			return Req::O_data;
-		} else if (owner_pred_beneficial(dfg, X)) {
+		} else if (owner_pred_beneficial(dfg, reverse_dfg, X)) {
 			return Req::WTo_data;
 		} else {
 			return Req::WTfwd_data;
@@ -417,20 +409,56 @@ static Req assign_request_type(const BdfDfg& dfg, const MemoryAccess& X) {
 	}
 }
 
+WordMask full_block_mask() {
+	WordMask mask;
+	mask.set();
+	return mask;
+}
+
+WordMask inter_synch_load_reuse(const BdfDfg& dfg, const MemoryAccess& X) {
+	const llvm::Value& orig_base = X.address.block.segment.base;
+
+	std::unordered_set<Address> cache;
+	WordMask mask;
+
+	for (auto [bdf, arg_no] : get_static_trace(dfg, X)) {
+		const auto& function = bdf.get().get_function();
+		assert(arg_no < function.arg_size());
+		const llvm::Argument& equiv_base = ptr2ref<llvm::Argument>(function.arg_begin() + arg_no);
+		const Address equiv_address = X.address.rebase(equiv_base);
+		for (const Ref<MemoryAccess>& access : bdf.get().all_block_conflicts(equiv_address.block)) {
+			const Address transposed_address =
+				(&access.get().address.block.segment.base == &equiv_base)
+				? access.get().address.rebase(orig_base)
+				: access.get().address
+				;
+
+			cache.insert(transposed_address);
+			assert(transposed_address.aligned(WORD_SIZE));
+			if (cache.size() > 0.75 * bdf.get().get_hw_params().cache_size) {
+				break;
+			}
+			if (access.get().kind == +AccessKind::load && transposed_address.block == X.address.block) {
+				mask.set(transposed_address.block_offset / WORD_SIZE);
+			}
+		}
+	}
+
+	return mask;
+}
+
 /*
 Algorithm 4: Request-granularity selection.
 */
-static std::pair<WordMask, Req> select_granularity(const MemoryAccess& X) {
+static std::pair<WordMask, Req> select_granularity(const BdfDfg& dfg, const MemoryAccess& X) {
 	if (X.req_type == +Req::V) {
-		return std::pair<WordMask, Req>(intra_synch_load_reuse(X), X.req_type);
+		return std::pair<WordMask, Req>(X.bdf.intra_synch_load_reuse(X), X.req_type);
 	} else if (X.req_type == +Req::S) {
-		WordMask word_mask;
-		word_mask.set();
-		return std::pair<WordMask, Req>(word_mask, X.req_type);
+		return std::pair<WordMask, Req>(full_block_mask(), X.req_type);
 	} else if (X.req_type == +Req::WTo || X.req_type == +Req::WTfwd || X.req_type == +Req::WTo_data || X.req_type == +Req::WTfwd_data) {
 		return std::pair<WordMask, Req>(requested_words_only(X), X.req_type);
 	} else if (X.req_type == +Req::O || X.req_type == +Req::O_data) {
-		WordMask word_mask {intra_synch_load_reuse(X)};
+		WordMask word_mask = inter_synch_load_reuse(dfg, X);
 		if (word_mask != requested_words_only(X)) {
 			return std::pair<WordMask, Req>(word_mask, +Req::O_data);
 		} else {
@@ -443,7 +471,7 @@ static std::pair<WordMask, Req> select_granularity(const MemoryAccess& X) {
 }
 
  static void spandex_annotate(const llvm::Module& module, const Digraph<Port>& mem_comm_dfg) {
-	std::vector<BoiledDownFunction> bdfs;
+	std::list<BoiledDownFunction> bdfs;
 	llvm::DataLayout data_layout {&module};
 	HardwareParams hp {
 					   .producer = false,
@@ -453,26 +481,17 @@ static std::pair<WordMask, Req> select_granularity(const MemoryAccess& X) {
 					   .core = {hpvm::CPU_TARGET, 0},
 	};
 	BdfDfg bdf_mem_comm_dfg = map_graph<Port, BdfDfgNode, Digraph<Port>, BdfDfg>(mem_comm_dfg, [&](const Port& port) {
-		{
-			const auto& function = ptr2ref<llvm::Function>(port.N.getFuncPointer());
-			auto bdf_result = BoiledDownFunction::create(function, data_layout, hp);
-			if (bdf_result.isOk()) {
-				bdfs.push_back(bdf_result.unwrap());
-			} else {
-				std::cerr << bdf_result.unwrapErr() << std::endl;
-				abort();
-			}
-		}
+		const auto& function = ptr2ref<llvm::Function>(port.N.getFuncPointer());
+		bdfs.emplace_back(function, data_layout, hp);
 		unsigned int pos = port.pos;
 		return BdfDfgNode{bdfs.back(), std::move(pos)};
 	});
+	BdfDfg reverse_dfg = reverse<BdfDfgNode, BdfDfg>(bdf_mem_comm_dfg);
 	for (auto& bdf : bdfs) {
 		for (auto& ma : bdf.get_all_accesses()) {
 			if (llvm::isa<llvm::Argument>(ma.address.block.segment.base)) {
-				ma.req_type = assign_request_type(bdf_mem_comm_dfg, ma);
-				auto word_mask_x_req_type = select_granularity(ma);
-				ma.word_mask = word_mask_x_req_type.first;
-				ma.req_type = word_mask_x_req_type.second;
+				ma.req_type = assign_request_type(bdf_mem_comm_dfg, reverse_dfg, ma);
+				std::pair<WordMask, Req>{ma.word_mask, ma.req_type} = select_granularity(bdf_mem_comm_dfg, ma);
 			}
 		}
 	}
