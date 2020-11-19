@@ -1,3 +1,4 @@
+#include <iomanip>
 #define DEBUG_TYPE "Spandex"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/ScalarEvolution.h"
@@ -11,8 +12,9 @@ BETTER_ENUM(SpandexRequestType, char, O_data, O, S, V, WTfwd, WTfwd_data, Vo, WT
 
 using Req = SpandexRequestType;
 
-constexpr unsigned short LINE_SIZE = 64;
-constexpr unsigned short WORD_SIZE = 8;
+constexpr unsigned short BYTE_SIZE = 8;
+constexpr unsigned short LINE_SIZE = 64 * BYTE_SIZE;
+constexpr unsigned short WORD_SIZE = 8 * BYTE_SIZE;
 using WordMask = std::bitset<LINE_SIZE / WORD_SIZE>;
 
 class HardwareParams {
@@ -162,8 +164,10 @@ public:
 			if (cache.size() > 0.75 * hw_params.cache_size) {
 				break;
 			}
-			if (it->get().kind == +AccessKind::load && it->get().address.block == X.address.block){
-				mask.set(it->get().address.block_offset / WORD_SIZE);
+			if (it->get().kind == +AccessKind::load && it->get().address.block == X.address.block) {
+				size_t word_index = it->get().address.block_offset / WORD_SIZE;
+				assert(word_index < mask.size());
+				mask.set(word_index);
 			}
 		}
 	}
@@ -358,7 +362,9 @@ static bool owner_pred_beneficial(const BdfDfg&, const BdfDfg& reverse_dfg, cons
 
 static WordMask requested_words_only(const MemoryAccess& X) {
 	WordMask mask;
-	mask.set(X.address.block_offset / WORD_SIZE);
+	size_t word_index = X.address.block_offset / WORD_SIZE;
+	assert(word_index < mask.size());
+	mask.set(word_index);
 	return mask;
 }
 
@@ -476,8 +482,8 @@ static std::pair<WordMask, Req> select_granularity(const BdfDfg& dfg, const Memo
 	HardwareParams hp {
 					   .producer = false,
 					   .owner_pred_available = false,
-					   .cache_size = 1024*1024,
-					   .block_size = 64,
+					   .cache_size = 1024*1024 * BYTE_SIZE,
+					   .block_size = 64 * BYTE_SIZE,
 					   .core = {hpvm::CPU_TARGET, 0},
 	};
 	BdfDfg bdf_mem_comm_dfg = map_graph<Port, BdfDfgNode, Digraph<Port>, BdfDfg>(mem_comm_dfg, [&](const Port& port) {
@@ -491,7 +497,15 @@ static std::pair<WordMask, Req> select_granularity(const BdfDfg& dfg, const Memo
 		for (auto& ma : bdf.get_all_accesses()) {
 			if (llvm::isa<llvm::Argument>(ma.address.block.segment.base)) {
 				ma.req_type = assign_request_type(bdf_mem_comm_dfg, reverse_dfg, ma);
-				std::pair<WordMask, Req>{ma.word_mask, ma.req_type} = select_granularity(bdf_mem_comm_dfg, ma);
+				auto word_mask_x_req_type = select_granularity(bdf_mem_comm_dfg, ma);
+				ma.word_mask = word_mask_x_req_type.first;
+				ma.req_type = word_mask_x_req_type.second;
+				std::cout
+					<< std::setw(60) << std::left << llvm_to_str(ma.instruction)
+					<< std::setw(5) << std::left << ma.req_type._to_string()
+					<< "[" << ma.word_mask.to_string() << "] "
+					<< "for "<< ma.address << " "
+					<< std::endl;
 			}
 		}
 	}

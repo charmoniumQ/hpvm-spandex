@@ -1,9 +1,9 @@
 digraph structs {
 	node [shape=record];
-	"A.entry" [label="{<i0>i32* tmp|<i1>i64 tmpSize}|A.entry|{<o0>0x6ce9d40|<o1>0x6c91c30}"];
-	"B_c" [label="{<i0>i32* tmp|<i1>i64 tmpSize}|B_c|{<o0>i64}"];
+	"A.entry" [label="{<i0>i8* tmp|<i1>i64 tmpSize}|A.entry|{<o0>0x55b6349a53c0|<o1>0x55b634972100}"];
+	"B_c" [label="{<i0>i8* tmp|<i1>i64 tmpSize}|B_c|{<o0>i64}"];
 	"A.exit" [label="{<i0>i64}|A.exit|{<o0>i64}"];
-	"C" [label="{<i0>i32* tmp|<i1>i64 tmpSize}|C|{<o0>i64}"];
+	"C" [label="{<i0>i8* tmp|<i1>i64 tmpSize}|C|{<o0>i64}"];
 
 	"C" -> "A.exit" [tailport=o0, headport=i0, ];
 	"B_c" -> "C" [tailport=o0, headport=i1, ];

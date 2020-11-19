@@ -65,7 +65,7 @@ public:
         Digraph<Port> mem_comm_dfg = get_mem_comm_dfg(leaf_dfg, coarse_leaf_dfg);
         DUMP_GRAPHVIZ_PORT_PTRS(mem_comm_dfg);
 
-		//spandex_annotate(module, mem_comm_dfg);
+		spandex_annotate(module, mem_comm_dfg);
       }
     }
 	// No DFG. Nothing for us to do;

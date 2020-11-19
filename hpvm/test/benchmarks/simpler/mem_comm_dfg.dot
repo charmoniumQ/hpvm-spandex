@@ -1,7 +1,7 @@
 digraph structs {
 	node [shape=record];
-	"C" [label="{<i0>i32* tmp|<i1>i64 tmpSize}|C"];
-	"B_c" [label="{<i0>i32* tmp|<i1>i64 tmpSize}|B_c"];
+	"C" [label="{<i0>i8* tmp|<i1>i64 tmpSize}|C"];
+	"B_c" [label="{<i0>i8* tmp|<i1>i64 tmpSize}|B_c"];
 
 	"B_c" -> "C" [tailport=i0, headport=i0, ];
 }

@@ -309,9 +309,6 @@ namespace std {
 	}
 
 	std::ostream& operator<<(std::ostream& os, const Address& address) {
-		os << address.block_offset << " ";
-		os << address.block.block_index << " ";
-		os << &address.block.segment.base << "\n";
 		return os << '(' << llvm_to_str(address.block.segment.base) << ")[" << address.block.block_index << "*" << address.block.segment.block_size << " + " << address.block_offset << "]";
 	}
 }

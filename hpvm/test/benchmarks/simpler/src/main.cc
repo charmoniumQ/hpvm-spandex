@@ -8,13 +8,13 @@ struct __attribute__((__packed__)) OutStruct {
 };
 
 struct __attribute__((__packed__)) InStruct {
-	int* tmp; size_t tmpSize;
+	uint8_t* tmp; size_t tmpSize;
 	OutStruct outStr;
 };
 
 const size_t RtmpSize = 20;
 
-void B_c(int* tmp, [[maybe unused]] size_t tmpSize) {
+void B_c(uint8_t* tmp, [[maybe unused]] size_t tmpSize) {
 	__hpvm__hint(hpvm::CPU_TARGET);
 	__hpvm__attributes(0, 1, tmp);
 	for (size_t i = 0; i < RtmpSize; ++i) {
@@ -23,7 +23,7 @@ void B_c(int* tmp, [[maybe unused]] size_t tmpSize) {
 	__hpvm__return(1, tmpSize);
 }
 
-void B(int* tmp, size_t tmpSize) {
+void B(uint8_t* tmp, size_t tmpSize) {
 	__hpvm__hint(hpvm::CPU_TARGET);
 	__hpvm__attributes(1, tmp, 1, tmp);
 
@@ -34,17 +34,17 @@ void B(int* tmp, size_t tmpSize) {
 	__hpvm__bindOut(B_n, 0, 0, HPVM_NONSTREAMING);
 }
 
-void C(int* tmp, [[maybe unsued]] size_t tmpSize) {
+void C(uint8_t* tmp, [[maybe unsued]] size_t tmpSize) {
 	__hpvm__hint(hpvm::CPU_TARGET);
 	__hpvm__attributes(1, tmp, 0);
-	int sum = 0;
-	for (size_t i = 0; i < RtmpSize; ++i) {
+	size_t sum = 0;
+	for (uint8_t i = 0; i < RtmpSize; ++i) {
 		sum += tmp[i];
 	}
 	__hpvm__return(1, tmpSize + sum);
 }
 
-void A(int* tmp, size_t tmpSize) {
+void A(uint8_t* tmp, size_t tmpSize) {
 	__hpvm__hint(hpvm::CPU_TARGET);
 	__hpvm__attributes(1, tmp, 1, tmp);
 
@@ -61,18 +61,18 @@ void A(int* tmp, size_t tmpSize) {
 int main(int argc, char *argv[]) {
 	__hpvm__init();
 
-	int tmp[RtmpSize];
-	llvm_hpvm_track_mem(tmp, RtmpSize * sizeof(int));
+	uint8_t tmp[RtmpSize];
+	llvm_hpvm_track_mem(tmp, RtmpSize * sizeof(uint8_t));
 
 	struct InStruct args {
-		tmp, RtmpSize * sizeof(int),
+		tmp, RtmpSize * sizeof(uint8_t),
 		{1},
 	};
 	void *A_n = __hpvm__launch(HPVM_NONSTREAMING, A, reinterpret_cast<void*>(&args));
 	__hpvm__wait(A_n);
 
 	// Is this necessary?
-	llvm_hpvm_request_mem(tmp, RtmpSize * sizeof(int));
+	llvm_hpvm_request_mem(tmp, RtmpSize * sizeof(uint8_t));
 
 	llvm_hpvm_untrack_mem(tmp);
 
