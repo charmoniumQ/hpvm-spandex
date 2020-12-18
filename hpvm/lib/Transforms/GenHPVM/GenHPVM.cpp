@@ -231,7 +231,7 @@ static void handleHPVMAttributes(Function *F, CallInst *CI) {
     if (Argument *arg = dyn_cast<Argument>(V)) {
       F->addAttribute(1 + arg->getArgNo(), Attribute::In);
     } else {
-      DEBUG(errs() << "Invalid argument to __hpvm__attribute: " << *V << "\n");
+		errs() << "Invalid argument to __hpvm__attribute ("<< *V << ") in function " << F->getName().data() << " " << "\n";
       llvm_unreachable(
           "Only pointer arguments can be passed to __hpvm__attributes call");
     }
@@ -444,6 +444,9 @@ bool GenHPVM::runOnModule(Module &M) {
                      << "\n");
 
         // Get i8* cast to function pointer
+        if (!isa<Function>(CI->getArgOperand(1))) {
+			errs() << "Second operand to " << *CI << " in " << I->getParent()->getParent()->getName() << " is not a function.\n";
+		}
         Function *graphFunc = cast<Function>(CI->getArgOperand(1));
         graphFunc = transformReturnTypeToStruct(graphFunc);
         Constant *F =

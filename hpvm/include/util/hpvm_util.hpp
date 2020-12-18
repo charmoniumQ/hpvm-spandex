@@ -2,6 +2,32 @@
 #include "SupportHPVM/DFGraph.h"
 #include "graph_util.hpp"
 #include "llvm_util.hpp"
+#include "demangle.hpp"
+#include "variant.hpp"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &stream,
+                              const llvm::DFNode &N) {
+  return stream << demangle(N.getFuncPointer()->getName().str())
+                << (N.isEntryNode() ? ".entry" : N.isExitNode() ? ".exit" : "");
+}
+
+namespace std {
+	template <> struct hash<llvm::DFNode> {
+		std::size_t operator()(const llvm::DFNode& address) const noexcept {
+			return reinterpret_cast<size_t>(&address);
+		}
+	};
+
+	bool operator==(const llvm::DFNode& a, const llvm::DFNode& b) {
+		return &a == &b;
+	}
+	bool operator!=(const llvm::DFNode& a, const llvm::DFNode& b) {
+		return !(a == b);
+	}
+}
 
 struct Port {
   const llvm::DFNode &N;
@@ -13,6 +39,13 @@ struct Port {
   llvm::Type & get_type() const {
 	  return ptr2ref<llvm::Type>(ptr2ref<llvm::Argument>(ptr2ref<Function>(N.getFuncPointer()).arg_begin() + pos).getType());
   }
+};
+
+struct Core {
+	hpvm::Target target;
+	unsigned int id;
+	bool operator==(const Core& other) const { return target == other.target && id == other.id; }
+	bool operator!=(const Core& other) const { return !(*this == other); }
 };
 
 namespace std {
@@ -33,9 +66,9 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &stream,
 	<< " -> " << Port{ptr2ref<llvm::DFNode>(E.getDestDF()), E.getDestPosition()} << "}";
 }
 
-class get_dfg_helper : public DFNodeVisitor {
+class get_dfg_helper : public llvm::DFNodeVisitor {
 private:
-  digraph<Port> dfg;
+  Digraph<Port> dfg;
 
 public:
 	const llvm::DFNode& normalize(const llvm::DFNode& orig, bool src) {
@@ -67,10 +100,10 @@ public:
   virtual void visit(llvm::DFLeafNode *N) {
 	  visit2(ptr2ref<llvm::DFNode>(reinterpret_cast<llvm::DFNode*>(N)));
   }
-  digraph<Port> get_dfg() { return dfg; }
+  Digraph<Port> get_dfg() { return dfg; }
 };
 
-digraph<Port> get_dfg(const llvm::DFInternalNode& N) {
+Digraph<Port> get_dfg(const llvm::DFInternalNode& N) {
   get_dfg_helper gdh;
   // I know this visitor does not modify the graph a priori
   // but the graph visitor API (not owned by me) is marked as non-const
@@ -78,10 +111,27 @@ digraph<Port> get_dfg(const llvm::DFInternalNode& N) {
   return gdh.get_dfg();
 }
 
-digraph<Port> get_mem_comm_dfg(const digraph<Port> &dfg,
-                               const digraph<const llvm::DFNode *> &coarse_dfg) {
-  digraph<Port> result;
-  for_each_adj_list<Port>(dfg, [&](const Port &src, const adj_list<Port> dsts) {
+Digraph<Port> get_leaf_dfg(const Digraph<Port>& dfg) {
+	Digraph<Port> leaf_dfg{dfg}; // copy
+	delete_nodes<Port>(leaf_dfg, [](const Port &port) {
+		return port.N.isDummyNode() && port.N.getLevel() != 1;
+	});
+	return leaf_dfg;
+}
+
+Digraph<Ref<llvm::DFNode>> get_coarse_leaf_dfg(const Digraph<Port>& leaf_dfg) {
+	return map_graph<
+		Port,
+		Ref<llvm::DFNode>,
+		Digraph<Port>,
+		Digraph<Ref<llvm::DFNode>>
+	>(leaf_dfg, [](const Port &port) { return std::cref(port.N); });
+}
+
+Digraph<Port> get_mem_comm_dfg(const Digraph<Port> &dfg,
+                               const Digraph<Ref<llvm::DFNode>> &coarse_dfg) {
+  Digraph<Port> result;
+  for_each_adj_list<Port, Digraph<Port>, AdjList<Port>>(dfg, [&](const Port &src, const AdjList<Port>& dsts) {
     if (dsts.size() > 1 && dsts.cbegin()->get_type().isPointerTy()) {
       for (const Port &dst1 : dsts) {
         for (const Port &dst2 : dsts) {
@@ -89,7 +139,7 @@ digraph<Port> get_mem_comm_dfg(const digraph<Port> &dfg,
             if (true &&
                 ptr2ref<llvm::Function>(dst1.N.getFuncPointer()).hasAttribute(dst1.pos + 1, llvm::Attribute::Out) &&
                 ptr2ref<llvm::Function>(dst2.N.getFuncPointer()).hasAttribute(dst2.pos + 1, llvm::Attribute::In ) &&
-                is_descendant<const llvm::DFNode *>(coarse_dfg, &dst1.N, &dst2.N)) {
+                is_descendant<Ref<llvm::DFNode>>(coarse_dfg, dst1.N, dst2.N)) {
               result[dst1].insert(dst2);
             }
           }
@@ -100,22 +150,130 @@ digraph<Port> get_mem_comm_dfg(const digraph<Port> &dfg,
   return result;
 }
 
+class Race {
+private:
+	const llvm::Instruction& i0;
+	const llvm::Instruction& i1;
+public:
+	Race(const llvm::Instruction& _i0, const llvm::Instruction& _i1)
+		: i0{_i0}
+		, i1{_i1}
+	{ }
+	std::string str() const {
+		return llvm_to_str(i0) + " may-race-with " + llvm_to_str(i1);
+	}
+	template <typename ListOfInstructions>
+	static std::vector<Race> create_all(const ListOfInstructions& instrns0, const ListOfInstructions& instrns1) {
+		std::vector<Race> all;
+		for (const llvm::Instruction& i0 : instrns0) {
+			for (const llvm::Instruction& i1 : instrns1) {
+				all.emplace_back(i0, i1);
+			}
+		}
+		return all;
+	}
+};
 
-llvm::raw_ostream &dump_graphviz_ports(llvm::raw_ostream &os, const digraph<Port> &dfg,
+bool is_dynamic(const DFNode& df_node) {
+	for (const llvm::Value* value : df_node.getDimLimits()) {
+		auto value_eval = statically_evaluate<uint64_t>(ptr2ref<llvm::Value>(value));
+		if (value_eval.isErr() || value_eval.unwrap() != 1) {
+			return false;
+		}
+	}
+	return true;
+}
+
+bool may_alias(const llvm::Value& v0, const llvm::Value& v1) {
+	return false;
+}
+
+std::list<Race>
+get_mayraces(const Digraph<Ref<llvm::DFNode>>& coarse_leaf_dfg, const Digraph<Port>& mem_comm_dfg, const std::unordered_map<Port, Port>& arg_roots) {
+	std::list<Race> mayraces;
+	std::unordered_map<const DFNode*, std::unordered_map<AccessKind, std::unordered_map<const llvm::Value*, std::list<Ref<llvm::Instruction>>>>> pointer_uses;
+	std::unordered_map<const DFNode*, std::unordered_map<AccessKind, std::unordered_map<unsigned, std::list<Ref<llvm::Instruction>>>>> arg_uses;
+	auto nodes = get_nodes<
+		Ref<llvm::DFNode>,
+		Digraph<Ref<llvm::DFNode>>,
+		typename Digraph<Ref<llvm::DFNode>>::mapped_type
+		>(coarse_leaf_dfg);
+	for (const DFNode& node : nodes) {
+		const auto& fn = ptr2ref<llvm::Function>(node.getFuncPointer());
+		get_accesses(fn, pointer_uses[&node]);
+
+		// Fill arg uses
+		for (auto [kind, pointer_to_instructions] : pointer_uses[&node]) {
+			for (auto [pointer, instructions] : pointer_to_instructions) {
+				unsigned n_args = fn.arg_end() - fn.arg_begin();
+				for (unsigned arg_idx = 0; arg_idx < n_args; ++arg_idx) {
+					const auto& arg = ptr2ref<llvm::Argument>(fn.arg_begin() + arg_idx);
+					if (may_alias(arg, ptr2ref<llvm::Value>(pointer))) {
+						arg_uses[&node][kind][arg_idx].insert(
+							arg_uses[&node][kind][arg_idx].end(),
+							instructions.cbegin(),
+							instructions.cend()
+						);
+					}
+				}
+			}
+		}
+	}
+
+	std::vector<std::pair<AccessKind, AccessKind>> race_kinds = {
+		{AccessKind::load , AccessKind::store},
+		{AccessKind::store, AccessKind::load },
+		{AccessKind::store, AccessKind::store},
+	};
+
+	for (const std::pair<Ref<llvm::DFNode>, Ref<llvm::DFNode>>& leaves : concurrent_nodes<Ref<llvm::DFNode>, Digraph<Ref<llvm::DFNode>>>(coarse_leaf_dfg)) {
+		if (&leaves.first != &leaves.second || is_dynamic(leaves.first)) {
+			for (auto [kind0, kind1] : race_kinds) {
+				for (auto [value0, instructions0] : pointer_uses[&leaves.first.get()][kind0]) {
+					for (auto [value1, instructions1] : pointer_uses[&leaves.second.get()][kind1]) {
+						if (may_alias(*value0, *value1)) {
+							auto subraces = Race::create_all(instructions0, instructions1);
+							mayraces.insert(
+								mayraces.begin(),
+								subraces.cbegin(),
+								subraces.cend()
+							);
+						}
+					}
+				}
+
+				for (auto [arg0, instructions0] : arg_uses[&leaves.first.get()][kind0]) {
+					for (auto [arg1, instructions1] : arg_uses[&leaves.second.get()][kind1]) {
+						if (arg_roots.at(Port{leaves.first.get(), arg0}) == arg_roots.at(Port{leaves.second.get(), arg1})) {
+							auto subraces = Race::create_all(instructions0, instructions1);
+							mayraces.insert(
+								mayraces.begin(),
+								subraces.cbegin(),
+								subraces.cend()
+							);
+						}
+					}
+				}
+			}
+		}
+	}
+	return mayraces;
+}
+
+llvm::raw_ostream &dump_graphviz_ports(llvm::raw_ostream &os, const Digraph<Port> &dfg,
 									   bool inps_only = false) {
   os << "digraph structs {\n";
 
   os << "\tnode [shape=record];\n";
 
-  std::unordered_set<const llvm::DFNode *> dfnodes;
+  std::unordered_set<Ref<llvm::DFNode>, std::hash<llvm::DFNode>> dfnodes;
   for_each_adj<Port>(dfg, [&](const Port &src, const Port &dst) {
     // omit port info
-    dfnodes.insert(&src.N);
-    dfnodes.insert(&dst.N);
+    dfnodes.insert(src.N);
+    dfnodes.insert(dst.N);
   });
 
-  for (const llvm::DFNode* _node : dfnodes) {
-	  const auto& node = ptr2ref<llvm::DFNode>(_node);
+  for (const llvm::DFNode& node : dfnodes) {
     os << "\t"
        << "\"" << node << "\" "
        << "["
@@ -204,3 +362,4 @@ llvm::raw_ostream &dump_graphviz_ports(llvm::raw_ostream &os, const digraph<Port
     dump_graphviz_ports(stream, graph, true);                                  \
   }
 
+#pragma GCC diagnostic pop

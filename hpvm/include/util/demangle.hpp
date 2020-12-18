@@ -1,15 +1,6 @@
 #pragma once
-#include <string>
 #include <regex>
 #include <cxxabi.h>
-#include "enum.h"
-#pragma GCC diagnostic ignored "-Wpedantic"
-#include "result.h"
-
-using str = std::string;
-
-template <typename T>
-using ResultStr = Result<T, str>;
 
 str demangle(const std::string &input) {
   int status = -1;
@@ -30,16 +21,4 @@ str demangle(const std::string &input) {
     //        << "\n";
     return real_input;
   }
-}
-
-template <typename T>
-T& ptr2ref(T* t) {
-	assert(t);
-	return *t;
-}
-
-template <typename T>
-const T& ptr2ref(const T* t) {
-	assert(t);
-	return *t;
 }

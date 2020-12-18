@@ -1,5 +1,5 @@
 #!/bin/sh
-set -e -x
+set -e
 
 ###############################################################################
 # About
@@ -20,12 +20,17 @@ set -e -x
 #
 #     $ env forward_x11=yes /path/to/docker.sh
 
+# By default, the docker container has a user with the same UID, GID,
+# username, and groupname as the host-user. This is useful so that the
+# container-user and host-user have the same permission-level inside
+# shared volumes.
+
 ###############################################################################
 # Inputs
 ###############################################################################
 
 # Name of the output image
-image_out="${image:-$(basename ${PWD})}"
+image_out="${image:-$(basename ${PWD} | tr A-Z a-z)}"
 
 # Base-image of the docker image
 os="${os:-ubuntu}"
@@ -66,9 +71,16 @@ sameplace_mounts="${sameplace_mounts:-}"
 # Space-separated list of colon-separated pairs
 mounts="${mounts:-}"
 
+# Workdir
+workdir="${workdir:-}"
+
 # The dockerfile to apply after the generated dockerfile
 # Defaults to "Dockerfile" if that file is present else no further dockerfile is applied.
 dockerfile_in="${dockerfile:-}"
+
+# The dockerfile commands to apply after everythign else
+# Defaults to nothing
+dockerfile_post_cmds="${dockerfile_post_cmds:-}"
 
 # Output for the resulting dockerfile
 # No output is generated if this is unset
@@ -78,7 +90,11 @@ dockerfile_out="${dockerfile_out:-$(mktemp)}"
 docker_run_args="${docker_run_args:-}"
 
 # Command to run after upping, if any
-command="${command:-}"
+command="${command:-/bin/bash}"
+
+# The actual value of this variable is arbitrary.
+# However, changes in this value can be used to invalidate the cache.
+touch="${touch:-}"
 
 ###############################################################################
 # Building
@@ -89,6 +105,8 @@ then
 	cat <<EOF > "${dockerfile_out}"
 FROM ${os}:${os_tag}
 
+RUN echo ${touch}
+
 # I am putting the packages necessary for adding other packages here.
 # Without these, other packages could not be immediately installed by the user.
 # sudo is necessary once I de-escalate priveleges.
@@ -97,7 +115,9 @@ FROM ${os}:${os_tag}
 # nano is necessary to debug
 ENV DEBIAN_FRONTEND=noninteractive TZ=America/Chicago  LANG=en_US.utf8
 RUN \
-    apt-get update && apt-get upgrade -y && apt-get autoremove -y && \
+    apt-get update && \
+    apt-get upgrade -y && \
+    apt-get autoremove -y && \
     apt-get install -y locales sudo gnupg2 curl apt-transport-https ca-certificates nano tzdata && \
     rm -rf /var/lib/apt/lists/* && \
     localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 && \
@@ -187,6 +207,11 @@ then
    cat "${dockerfile_in}" >> "${dockerfile_out}"
 fi
 
+if [ -n "${dockerfile_post_cmds}" ]
+then
+	echo "${dockerfile_post_cmds}" >> "${dockerfile_out}"
+fi
+
 docker build --tag="${image_out}" --file="${dockerfile_out}" "${context}"
 
 ###############################################################################
@@ -214,18 +239,29 @@ fi
 
 if [ "${mount_cwd}" = "yes" ]; then
 	wd="${PWD}"
+	# I don't think we need to realpath this.
+	# If we do:
 	# MacOS does not have `realpath` (gnu coreutils)
-	if realpath "${wd}"
+	# if realpath "${wd}"
+	# then
+	# 	wd="$(realpath ${wd})"
+	# fi
+    docker_run_args="${docker_run_args} --volume ${wd}:${wd}"
+	if [ -z "${workdi}" ]
 	then
-		wd="$(realpath ${wd})"
+		docker_run_args="${docker_run_args} --workdir ${wd}"
 	fi
-    docker_run_args="${docker_run_args} --volume ${wd}:${wd} --workdir ${wd}"
 fi
 
 for sameplace_mount in ${sameplace_mounts}
 do
 	docker_run_args="${docker_run_args} --volume ${sameplace_mount}:${sameplace_mount}"
 done
+
+if [ -n "${workdir}" ]
+then
+	docker_run_args="${docker_run_args} --workdir ${workdir}"
+fi
 
 for mount in ${mounts}
 do
@@ -242,4 +278,4 @@ then
 	echo "# docker run ${docker_run_args} ${image_out} ${command}" >> "${dockerfile_out}"
 fi
 
-docker run ${docker_run_args} ${image_out} ${command}
+eval 'docker run ${docker_run_args} ${image_out} '${command}''

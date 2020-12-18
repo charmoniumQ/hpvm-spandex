@@ -54,24 +54,30 @@ fi
 
 mkdir -p "${BUILD_DIR}"
 
-if [ ! -f "${BUILD_DIR}/Makefile" ]; then
+if [ ! -f "${BUILD_DIR}/build.ninja" ]; then
 	# For building in Nix on dholak:
 	# OpenCL_DIR="$(find /nix/store -maxdepth 1 -name '*-opencl-headers-22-2017-07-18')"
 	# ocl_icd="$(find /nix/store -maxdepth 1 -name '*-ocl-icd-2.2.10')"
-	# cmake_args=-DOpenCL_INCLUDE_DIR="${OpenCL_DIR}/include" -DOpenCL_LIBRARY="${ocl_icd}/lib"
+	# cmake_args="${cmake_args} -D OpenCL_INCLUDE_DIR=${OpenCL_DIR}/include -D OpenCL_LIBRARY=${ocl_icd}/lib"
 
 	# For building natively on dholak:
-	# cmake_args=-DPYTHON_EXECUTABLE:FILEPATH=$(which python3)
+	# cmake_args="${cmake_args} -D PYTHON_EXECUTABLE:FILEPATH=$(which python3)"
 
-	# cmake_args="${cmake_args} -B${BUILD_DIR}"
-
-	cd build
-	cmake "../${LLVM_SRC}" -DLLVM_TARGETS_TO_BUILD="X86" -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" ${cmake_args}
-	cd ..
+	cmake \
+		-S "${LLVM_SRC}" \
+		-B "${BUILD_DIR}" \
+		-G Ninja \
+		-D LLVM_TARGETS_TO_BUILD="X86" \
+		-D CMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
+		-D CMAKE_EXE_LINKER_FLAGS="-fuse-ld=gold" \
+		-D CMAKE_SHARED_LINKER_FLAGS="-fuse-ld=gold" \
+		${cmake_args}
 fi
 
-make -j${NUM_THREADS} -C "${BUILD_DIR}"
+#make -j "${NUM_THREADS}" -C "${BUILD_DIR}"
+ninja -C "${BUILD_DIR}"
+#shake -C "${BUILD_DIR}" -j --color
 
 #build/bin/llvm-lit -v test/regressionTests
 
-make -C test/benchmarks/simpler
+# make -C test/benchmarks/indirection

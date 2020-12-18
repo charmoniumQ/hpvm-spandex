@@ -894,13 +894,29 @@ bool operator==(const Result<T, E>& lhs, types::Err<E> err) {
     return lhs.storage().template get<E>() == err.val;
 }
 
-#define TRY(...)                                                   \
+/*
+  Sam's additions begin here.
+ */
+#include <string>
+
+#define TRY(result_expr)                                           \
     ({                                                             \
-        auto res = __VA_ARGS__;                                    \
+        auto res = result_expr;                                    \
         if (!res.isOk()) {                                         \
-            typedef details::ResultErrType<decltype(res)>::type E; \
-            return types::Err<E>(res.storage().get<E>());          \
+            return Err<str>(str{__FILE__ ":"} + std::to_string(__LINE__) + str{"\n    " #result_expr "\n"} + res.unwrapErr()); \
         }                                                          \
-        typedef details::ResultOkType<decltype(res)>::type T;      \
-        res.storage().get<T>();                                    \
+        res.unwrap();                                              \
     })
+
+template <typename T>
+using ResultStr = Result<T, std::string>;
+
+template <typename T>
+T unwrap(ResultStr<T> result) {
+	if (result.isOk()) {
+		return result.unwrap();
+	} else {
+		std::cerr << result.unwrapErr() << std::endl;
+		abort();
+	}
+}

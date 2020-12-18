@@ -1,0 +1,4 @@
+[component_0]
+type = Library
+name = alias_table
+parent = Transforms
