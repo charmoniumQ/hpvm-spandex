@@ -30,7 +30,7 @@ set -e
 ###############################################################################
 
 # Name of the output image
-image_out="${image:-$(basename ${PWD} | tr A-Z a-z)}"
+image_out="${image:-$(basename $(pwd) | tr A-Z a-z)}"
 
 # Base-image of the docker image
 os="${os:-ubuntu}"
@@ -95,6 +95,9 @@ command="${command:-/bin/bash}"
 # The actual value of this variable is arbitrary.
 # However, changes in this value can be used to invalidate the cache.
 touch="${touch:-}"
+
+# Silence the docker build (not default)
+quiet="${quiet:-}"
 
 ###############################################################################
 # Building
@@ -188,7 +191,7 @@ fi
 
 if [ "${context_cwd}" = "yes" ]
 then
-	context="${PWD}"
+	context="$(pwd)"
 else
 	context="$(mktemp -d)"
 fi
@@ -202,7 +205,7 @@ then
 	fi
 fi
 
-if [ ! -z "${dockerfile_in}" ]
+if [ -n "${dockerfile_in}" ]
 then
    cat "${dockerfile_in}" >> "${dockerfile_out}"
 fi
@@ -212,7 +215,12 @@ then
 	echo "${dockerfile_post_cmds}" >> "${dockerfile_out}"
 fi
 
-docker build --tag="${image_out}" --file="${dockerfile_out}" "${context}"
+if [ "${quiet}" = yes ]
+then
+	docker_build_args="${docker_build_args} --quiet"
+fi
+
+docker build ${docker_build_args} --tag="${image_out}" --file="${dockerfile_out}" "${context}"
 
 ###############################################################################
 # Running
@@ -238,7 +246,7 @@ if [ "${interactive}" = "yes" ]; then
 fi
 
 if [ "${mount_cwd}" = "yes" ]; then
-	wd="${PWD}"
+	wd="$(pwd)"
 	# I don't think we need to realpath this.
 	# If we do:
 	# MacOS does not have `realpath` (gnu coreutils)

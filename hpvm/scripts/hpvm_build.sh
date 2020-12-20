@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e -x
+set -e
 cd "$(dirname "${0}")/.."
 
 VERSION="9.0.0"
@@ -77,7 +77,3 @@ fi
 #make -j "${NUM_THREADS}" -C "${BUILD_DIR}"
 ninja -C "${BUILD_DIR}"
 #shake -C "${BUILD_DIR}" -j --color
-
-#build/bin/llvm-lit -v test/regressionTests
-
-# make -C test/benchmarks/indirection

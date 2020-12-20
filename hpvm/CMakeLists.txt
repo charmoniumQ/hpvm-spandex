@@ -3,8 +3,6 @@ add_subdirectory(lib)
 add_subdirectory(projects)
 add_subdirectory(tools)
 
-add_subdirectory(test)
-
 # Add a global check rule now that all subdirectories have been traversed
 # and we know the total set of lit testsuites.
 get_property(LLVM_LIT_TESTSUITES GLOBAL PROPERTY LLVM_LIT_TESTSUITES)
