@@ -799,21 +799,22 @@ Value *GenHPVM::getStringPointer(const Twine &S, Instruction *IB,
 void GenHPVM::initializeTimerSet(Instruction *InsertBefore) {
   Value *TimerSetAddr;
   StoreInst *SI;
-  TIMER(TimerSet = new GlobalVariable(
-            *M, Type::getInt8PtrTy(M->getContext()), false,
-            GlobalValue::CommonLinkage,
-            Constant::getNullValue(Type::getInt8PtrTy(M->getContext())),
-            "hpvmTimerSet_GenHPVM"));
-  DEBUG(errs() << "Inserting GV: " << *TimerSet->getType() << *TimerSet
-               << "\n");
-  // DEBUG(errs() << "Inserting call to: " << *llvm_hpvm_initializeTimerSet <<
-  // "\n");
+    if (HPVMTimer) {
+		TimerSet = new GlobalVariable(*M, Type::getInt8PtrTy(M->getContext()), false,
+									  GlobalValue::CommonLinkage,
+									  Constant::getNullValue(Type::getInt8PtrTy(M->getContext())),
+									  "hpvmTimerSet_GenHPVM");
 
-  TIMER(TimerSetAddr = CallInst::Create(llvm_hpvm_initializeTimerSet, None, "",
-                                        InsertBefore));
-  DEBUG(errs() << "TimerSetAddress = " << *TimerSetAddr << "\n");
-  TIMER(SI = new StoreInst(TimerSetAddr, TimerSet, InsertBefore));
-  DEBUG(errs() << "Store Timer Address in Global variable: " << *SI << "\n");
+		DEBUG(errs() << "Inserting GV: " << *TimerSet->getType() << *TimerSet << "\n");
+
+		// DEBUG(errs() << "Inserting call to: " << *llvm_hpvm_initializeTimerSet << "\n");
+
+		TimerSetAddr = CallInst::Create(llvm_hpvm_initializeTimerSet, None, "", InsertBefore);
+		DEBUG(errs() << "TimerSetAddress = " << *TimerSetAddr << "\n");
+
+		SI = new StoreInst(TimerSetAddr, TimerSet, InsertBefore);
+		DEBUG(errs() << "Store Timer Address in Global variable: " << *SI << "\n");
+	};
 }
 
 void GenHPVM::switchToTimer(enum hpvm_TimerID timer,
